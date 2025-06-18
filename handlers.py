@@ -1,5 +1,9 @@
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import (
+    Message, ReplyKeyboardMarkup, KeyboardButton,
+    ReplyKeyboardRemove, InlineKeyboardMarkup,
+    InlineKeyboardButton, WebAppInfo
+)
 from aiogram.fsm.context import FSMContext
 from states import RegisterState
 from database import save_user, get_user
@@ -8,7 +12,16 @@ router = Router()
 
 @router.message(F.text == "/start")
 async def start_cmd(message: Message):
-    await message.answer("Добро пожаловать в AstroConnect! ✨\nНажми /register, чтобы начать знакомство.")
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🌠 Открыть анкеты",
+            web_app=WebAppInfo(url="https://preeminent-kelpie-cd4c81.netlify.app/")
+        )]
+    ])
+    await message.answer(
+        "Добро пожаловать в AstroConnect! ✨\nНажми /register, чтобы создать анкету или открой анкеты ниже.",
+        reply_markup=markup
+    )
 
 @router.message(F.text == "/register")
 async def register_start(message: Message, state: FSMContext):
