@@ -1,58 +1,31 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
-import random
+import asyncio
+import logging
+import os
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from handlers import router as handlers_router
+from discover import router as discover_router
+from database import init_db  # init_db() будет вызван при запуске
+from dotenv import load_dotenv
 
-app = FastAPI()
+load_dotenv()
 
-origins = [
-    "*",  # Упростим на время тестов, потом заменить
-]
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+async def main():
+    logging.basicConfig(level=logging.INFO)
 
-# Модель анкеты
-class Profile(BaseModel):
-    name: str
-    age: int
-    city: str
-    zodiac: str
-    about: str
-    photo: str
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
 
-@app.get("/profiles", response_model=List[Profile])
-def get_profiles():
-    # Заглушка: возвращает 3 анкеты
-    return [
-        Profile(
-            name="Анна",
-            age=25,
-            city="Москва",
-            zodiac="Скорпион",
-            about="Люблю звёзды и кофе ☕",
-            photo="https://placehold.co/300x300"
-        ),
-        Profile(
-            name="Ирина",
-            age=29,
-            city="Минск",
-            zodiac="Рак",
-            about="Вяжу свитеры и слушаю джаз 🎷",
-            photo="https://placehold.co/300x300"
-        ),
-        Profile(
-            name="Мария",
-            age=31,
-            city="Сочи",
-            zodiac="Лев",
-            about="Обожаю закаты и морской воздух 🌅",
-            photo="https://placehold.co/300x300"
-        ),
-    ]
+    # Инициализация БД
+    await init_db()
+
+    # Регистрация роутеров
+    dp.include_router(handlers_router)
+    dp.include_router(discover_router)
+
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
