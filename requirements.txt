@@ -2,7 +2,6 @@ aiogram==3.4.1
 python-dotenv
 flatlib
 asyncpg
-fastapi==0.109.2
+pydantic==2.4.2
+fastapi==0.104.1
 uvicorn==0.23.2
-pydantic==2.5.3
-pydantic-core==2.14.6
