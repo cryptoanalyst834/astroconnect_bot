@@ -1,54 +1,49 @@
-import psycopg2
 import os
+import asyncpg
+import asyncio
 
-def connect():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-def init_db():
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        telegram_id BIGINT PRIMARY KEY,
-        name TEXT,
-        gender TEXT,
-        birth_date TEXT,
-        birth_time TEXT,
-        birth_city TEXT,
-        location_city TEXT,
-        looking_for TEXT,
-        about TEXT,
-        photo TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-    conn.commit()
-    conn.close()
+CREATE_USERS_TABLE = """
+CREATE TABLE IF NOT EXISTS users (
+    telegram_id BIGINT PRIMARY KEY,
+    name TEXT,
+    gender TEXT,
+    birth_date TEXT,
+    birth_time TEXT,
+    birth_city TEXT,
+    location_city TEXT,
+    looking_for TEXT,
+    about TEXT,
+    photo TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+"""
 
-def save_user(data):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("""
+async def connect():
+    return await asyncpg.connect(DATABASE_URL)
+
+async def init_db():
+    conn = await connect()
+    await conn.execute(CREATE_USERS_TABLE)
+    await conn.close()
+
+async def save_user(data):
+    conn = await connect()
+    await conn.execute("""
         INSERT INTO users (telegram_id, name, gender, birth_date, birth_time, birth_city,
                            location_city, looking_for, about, photo)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         ON CONFLICT (telegram_id) DO UPDATE
-        SET name=EXCLUDED.name, gender=EXCLUDED.gender, birth_date=EXCLUDED.birth_date,
-            birth_time=EXCLUDED.birth_time, birth_city=EXCLUDED.birth_city,
-            location_city=EXCLUDED.location_city, looking_for=EXCLUDED.looking_for,
-            about=EXCLUDED.about, photo=EXCLUDED.photo;
-    """, (
-        data["telegram_id"], data["name"], data["gender"],
-        data["birth_date"], data["birth_time"], data["birth_city"],
-        data["location_city"], data["looking_for"], data["about"], data.get("photo", "")
-    ))
-    conn.commit()
-    conn.close()
+        SET name=$2, gender=$3, birth_date=$4, birth_time=$5, birth_city=$6,
+            location_city=$7, looking_for=$8, about=$9, photo=$10;
+    """, data["telegram_id"], data["name"], data["gender"], data["birth_date"],
+         data["birth_time"], data["birth_city"], data["location_city"],
+         data["looking_for"], data["about"], data.get("photo", ""))
+    await conn.close()
 
-def get_user(telegram_id):
-    conn = connect()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE telegram_id = %s", (telegram_id,))
-    user = cur.fetchone()
-    conn.close()
-    return user
+async def get_user(telegram_id):
+    conn = await connect()
+    row = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
+    await conn.close()
+    return row
