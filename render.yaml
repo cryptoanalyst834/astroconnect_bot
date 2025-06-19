@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: astroconnect-bot
-    runtime: python
-    buildCommand: pip install --no-cache-dir -r requirements.txt
-    startCommand: python main.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
