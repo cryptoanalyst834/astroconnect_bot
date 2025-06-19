@@ -1,108 +1,58 @@
-from aiogram import Router, F
-from aiogram.types import (
-    Message, InlineKeyboardMarkup,
-    InlineKeyboardButton, WebAppInfo,
-    ReplyKeyboardRemove
-)
-from aiogram.fsm.context import FSMContext
-from states import RegisterState
-from database import save_user, get_user
-from astro_utils import generate_astrology_info
+import os
+import asyncpg
 
-router = Router()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-@router.message(F.text == "/start")
-async def start_cmd(message: Message):
-    markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🌠 Открыть анкеты",
-            web_app=WebAppInfo(url="https://preeminent-kelpie-cd4c81.netlify.app/")
-        )]
-    ])
-    await message.answer(
-        "Добро пожаловать в AstroConnect! ✨\nНажми /register, чтобы создать анкету или открой анкеты ниже.",
-        reply_markup=markup
-    )
 
-@router.message(F.text == "/register")
-async def register_start(message: Message, state: FSMContext):
-    await message.answer("Как тебя зовут?")
-    await state.set_state(RegisterState.name)
+async def init_db():
+    conn = await asyncpg.connect(DATABASE_URL)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            telegram_id BIGINT PRIMARY KEY,
+            name TEXT,
+            gender TEXT,
+            birth_date TEXT,
+            birth_time TEXT,
+            birth_city TEXT,
+            location_city TEXT,
+            looking_for TEXT,
+            about TEXT,
+            photo TEXT,
+            sun TEXT,
+            ascendant TEXT
+        );
+    """)
+    await conn.close()
 
-@router.message(RegisterState.name)
-async def register_gender(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.answer("Твой пол? (М / Ж)")
-    await state.set_state(RegisterState.gender)
 
-@router.message(RegisterState.gender)
-async def register_birth_date(message: Message, state: FSMContext):
-    await state.update_data(gender=message.text)
-    await message.answer("Дата рождения? (дд.мм.гггг)")
-    await state.set_state(RegisterState.birth_date)
+async def save_user(data):
+    conn = await asyncpg.connect(DATABASE_URL)
+    await conn.execute("""
+        INSERT INTO users (
+            telegram_id, name, gender, birth_date, birth_time, birth_city,
+            location_city, looking_for, about, photo, sun, ascendant
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT (telegram_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            gender = EXCLUDED.gender,
+            birth_date = EXCLUDED.birth_date,
+            birth_time = EXCLUDED.birth_time,
+            birth_city = EXCLUDED.birth_city,
+            location_city = EXCLUDED.location_city,
+            looking_for = EXCLUDED.looking_for,
+            about = EXCLUDED.about,
+            photo = EXCLUDED.photo,
+            sun = EXCLUDED.sun,
+            ascendant = EXCLUDED.ascendant;
+    """, data["telegram_id"], data["name"], data["gender"],
+         data["birth_date"], data["birth_time"], data["birth_city"],
+         data["location_city"], data["looking_for"], data["about"],
+         data["photo"], data["sun"], data["ascendant"])
+    await conn.close()
 
-@router.message(RegisterState.birth_date)
-async def register_birth_time(message: Message, state: FSMContext):
-    await state.update_data(birth_date=message.text)
-    await message.answer("Время рождения? (чч:мм, если не знаешь — укажи 12:00)")
-    await state.set_state(RegisterState.birth_time)
 
-@router.message(RegisterState.birth_time)
-async def register_birth_city(message: Message, state: FSMContext):
-    await state.update_data(birth_time=message.text)
-    await message.answer("Город рождения?")
-    await state.set_state(RegisterState.birth_city)
-
-@router.message(RegisterState.birth_city)
-async def register_location_city(message: Message, state: FSMContext):
-    await state.update_data(birth_city=message.text)
-    await message.answer("Где ты сейчас живешь?")
-    await state.set_state(RegisterState.location_city)
-
-@router.message(RegisterState.location_city)
-async def register_looking_for(message: Message, state: FSMContext):
-    await state.update_data(location_city=message.text)
-    await message.answer("Кого ты ищешь? (М / Ж)")
-    await state.set_state(RegisterState.looking_for)
-
-@router.message(RegisterState.looking_for)
-async def register_about(message: Message, state: FSMContext):
-    await state.update_data(looking_for=message.text)
-    await message.answer("Расскажи немного о себе (2-3 предложения):")
-    await state.set_state(RegisterState.about)
-
-@router.message(RegisterState.about)
-async def register_photo(message: Message, state: FSMContext):
-    await state.update_data(about=message.text)
-    await message.answer("Пришли свою фотографию (1 шт):")
-    await state.set_state(RegisterState.photo)
-
-@router.message(RegisterState.photo, F.photo)
-async def register_complete(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    await state.update_data(photo=file_id)
-    data = await state.get_data()
-    data["telegram_id"] = message.from_user.id
-
-    # Генерация натальной карты
-    sun, asc = generate_astrology_info(data)
-    data["sun"] = sun
-    data["ascendant"] = asc
-
-    # Сохранение анкеты
-    await save_user(data)
-
-    await state.clear()
-    await message.answer("Твоя анкета сохранена! 🎉", reply_markup=ReplyKeyboardRemove())
-
-@router.message(F.text == "/profile")
-async def profile(message: Message):
-    user = await get_user(message.from_user.id)
-    if not user:
-        await message.answer("Ты ещё не зарегистрирован. Нажми /register.")
-    else:
-        name, gender, birth_date, _, _, location, _, about, _, _, sun, asc = user[1:]
-        await message.answer(
-            f"👤 {name} ({gender})\n📍 {location}\n"
-            f"📅 {birth_date}\n☀️ Солнце в {sun}\n⬆️ Асцендент: {asc}\n💬 {about}"
-        )
+async def get_user(telegram_id):
+    conn = await asyncpg.connect(DATABASE_URL)
+    result = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
+    await conn.close()
+    return result
