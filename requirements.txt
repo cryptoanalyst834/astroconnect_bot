@@ -3,6 +3,5 @@ python-dotenv
 flatlib
 asyncpg
 pydantic==2.5.3
-pydantic-core==2.14.6
 fastapi==0.104.1
 uvicorn==0.23.2
