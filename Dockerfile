@@ -1,14 +1,20 @@
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y build-essential libpq-dev curl \
- && curl https://sh.rustup.rs -sSf | sh -s -- -y
+# Установим system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/root/.cargo/bin:$PATH"
-
+# Создаем рабочую директорию
 WORKDIR /app
+
+# Копируем все файлы проекта
 COPY . .
 
+# Обновляем pip и ставим зависимости
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Запуск бота
 CMD ["python", "main.py"]
