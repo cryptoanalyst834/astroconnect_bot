@@ -82,11 +82,13 @@ async def register_complete(message: Message, state: FSMContext):
     await state.update_data(photo=file_id)
     data = await state.get_data()
     data["telegram_id"] = message.from_user.id
+
     from astro_utils import generate_astrology_info
-sun, asc = generate_astrology_info(data)
-data["sun"] = sun
-data["ascendant"] = asc
-await save_user(data)
+    sun, asc = generate_astrology_info(data)
+    data["sun"] = sun
+    data["ascendant"] = asc
+
+    await save_user(data)
     await state.clear()
     await message.answer("Твоя анкета сохранена! 🎉", reply_markup=ReplyKeyboardRemove())
 
