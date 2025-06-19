@@ -1,26 +1,24 @@
+# api.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import asyncpg
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+from database import get_all_users  # функция уже есть у тебя
+import uvicorn
 
 app = FastAPI()
 
-# Разрешаем доступ с фронтенда (например, Netlify)
+# Разрешим запросы с фронтенда
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # укажи конкретный домен при проде
+    allow_origins=["*"],  # в проде лучше указать конкретный домен
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.get("/profiles")
-async def get_profiles():
-    conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch("SELECT * FROM users")
-    await conn.close()
-    return [dict(row) for row in rows]
+async def profiles():
+    users = await get_all_users()
+    return users
+
+if __name__ == "__main__":
+    uvicorn.run("api:app", host="0.0.0.0", port=8000)
