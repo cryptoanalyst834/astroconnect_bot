@@ -83,14 +83,25 @@ async def register_complete(message: Message, state: FSMContext):
     data = await state.get_data()
     data["telegram_id"] = message.from_user.id
 
+    # Импорт здесь, чтобы избежать циклических зависимостей
     from astro_utils import generate_astrology_info
-    sun, asc = generate_astrology_info(data)
-    data["sun"] = sun
-    data["ascendant"] = asc
+
+    try:
+        sun, asc = await generate_astrology_info(
+            birth_date=data["birth_date"],
+            birth_time=data["birth_time"],
+            birth_city=data["birth_city"]
+        )
+        data["sun"] = sun
+        data["ascendant"] = asc
+    except Exception as e:
+        await message.answer("❗️ Ошибка при расчёте натальной карты.")
+        print("Астрология ошибка:", e)
+        return
 
     await save_user(data)
     await state.clear()
-    await message.answer("Твоя анкета сохранена! 🎉", reply_markup=ReplyKeyboardRemove())
+    await message.answer("🎉 Твоя анкета сохранена и готова к просмотру!", reply_markup=ReplyKeyboardRemove())
 
 @router.message(F.text == "/profile")
 async def profile(message: Message):
