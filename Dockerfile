@@ -1,20 +1,20 @@
 FROM python:3.11-slim
 
-# Устанавливаем system зависимости и Rust вручную
+# Установка зависимостей системы
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
-    curl \
-    && curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean
 
-ENV PATH="/root/.cargo/bin:${PATH}"
-
+# Создание рабочей директории
 WORKDIR /app
 
-COPY . .
+# Копирование файлов
+COPY . /app
 
+# Установка зависимостей Python
 RUN pip install --upgrade pip
-RUN pip install --only-binary=:all: --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Команда запуска
 CMD ["python", "main.py"]
