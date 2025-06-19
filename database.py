@@ -20,6 +20,26 @@ async def init_db():
             photo TEXT
         );
     """)
+    async def get_all_users():
+    conn = await asyncpg.connect(DATABASE_URL)
+    rows = await conn.fetch("SELECT * FROM users")
+    await conn.close()
+
+    users = []
+    for row in rows:
+        users.append({
+            "name": row["name"],
+            "gender": row["gender"],
+            "birth_date": row["birth_date"],
+            "birth_time": row["birth_time"],
+            "birth_city": row["birth_city"],
+            "location_city": row["location_city"],
+            "looking_for": row["looking_for"],
+            "about": row["about"],
+            "photo": row["photo"],
+        })
+    return users
+
     await conn.close()
 
 
