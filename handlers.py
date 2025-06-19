@@ -1,12 +1,13 @@
 from aiogram import Router, F
 from aiogram.types import (
-    Message, ReplyKeyboardMarkup, KeyboardButton,
-    ReplyKeyboardRemove, InlineKeyboardMarkup,
-    InlineKeyboardButton, WebAppInfo
+    Message, InlineKeyboardMarkup,
+    InlineKeyboardButton, WebAppInfo,
+    ReplyKeyboardRemove
 )
 from aiogram.fsm.context import FSMContext
 from states import RegisterState
 from database import save_user, get_user
+from astro_utils import generate_astrology_info
 
 router = Router()
 
@@ -83,20 +84,25 @@ async def register_complete(message: Message, state: FSMContext):
     data = await state.get_data()
     data["telegram_id"] = message.from_user.id
 
-    from astro_utils import generate_astrology_info
+    # Генерация натальной карты
     sun, asc = generate_astrology_info(data)
     data["sun"] = sun
     data["ascendant"] = asc
 
+    # Сохранение анкеты
     await save_user(data)
+
     await state.clear()
     await message.answer("Твоя анкета сохранена! 🎉", reply_markup=ReplyKeyboardRemove())
 
 @router.message(F.text == "/profile")
 async def profile(message: Message):
-    user = get_user(message.from_user.id)
+    user = await get_user(message.from_user.id)
     if not user:
         await message.answer("Ты ещё не зарегистрирован. Нажми /register.")
     else:
-        name, gender, birth_date, _, _, location, _, about, _, _ = user[1:10]
-        await message.answer(f"👤 {name} ({gender})\n📍 {location}\n📅 {birth_date}\n💬 {about}")
+        name, gender, birth_date, _, _, location, _, about, _, _, sun, asc = user[1:]
+        await message.answer(
+            f"👤 {name} ({gender})\n📍 {location}\n"
+            f"📅 {birth_date}\n☀️ Солнце в {sun}\n⬆️ Асцендент: {asc}\n💬 {about}"
+        )
