@@ -2,5 +2,4 @@ aiogram==3.4.1
 python-dotenv
 flatlib
 asyncpg
-pydantic==2.5.3 --only-binary :all:
-pydantic-core==2.14.6 --only-binary :all:
+pydantic==2.35.1
