@@ -1,25 +1,33 @@
-import os, asyncpg
+import os
+import asyncpg
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 async def init_db():
     conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             telegram_id BIGINT PRIMARY KEY,
-            name TEXT, gender TEXT,
-            birth_date TEXT, birth_time TEXT,
-            birth_city TEXT, location_city TEXT,
-            looking_for TEXT, about TEXT, photo TEXT
+            name TEXT,
+            gender TEXT,
+            birth_date TEXT,
+            birth_time TEXT,
+            birth_city TEXT,
+            location_city TEXT,
+            looking_for TEXT,
+            about TEXT,
+            photo TEXT
         );
     """)
     await conn.close()
+
 
 async def save_user(data):
     conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""
         INSERT INTO users (telegram_id, name, gender, birth_date, birth_time, birth_city, location_city, looking_for, about, photo)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         ON CONFLICT (telegram_id) DO UPDATE SET
             name = EXCLUDED.name,
             gender = EXCLUDED.gender,
@@ -29,13 +37,15 @@ async def save_user(data):
             location_city = EXCLUDED.location_city,
             looking_for = EXCLUDED.looking_for,
             about = EXCLUDED.about,
-            photo = EXCLUDED.photo;
-    """, data["telegram_id"], data["name"], data["gender"], data["birth_date"], data["birth_time"],
-         data["birth_city"], data["location_city"], data["looking_for"], data["about"], data["photo"])
+            photo = EXCLUDED.photo
+    """, data["telegram_id"], data["name"], data["gender"],
+         data["birth_date"], data["birth_time"], data["birth_city"],
+         data["location_city"], data["looking_for"], data["about"], data["photo"])
     await conn.close()
+
 
 async def get_user(telegram_id):
     conn = await asyncpg.connect(DATABASE_URL)
-    row = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
+    result = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
     await conn.close()
-    return row
+    return result
