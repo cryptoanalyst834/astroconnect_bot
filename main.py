@@ -2,23 +2,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
 import os
+import asyncio
+from bot import bot, dp  # <- твой файл с Telegram-ботом
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Или укажи только Netlify URL
+    allow_origins=["*"],  # Лучше укажи Netlify URL в проде
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Добавь в .env и Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.connect(DATABASE_URL)
+    asyncio.create_task(dp.start_polling(bot))  # Запуск Telegram-бота
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -32,7 +35,7 @@ async def get_profiles():
         profiles.append({
             "name": row["name"],
             "about": row["about"],
-            "photo": row["photo"],  # file_id
+            "photo": row["photo"],
             "location_city": row["location_city"],
             "sun": row.get("sun", ""),
             "ascendant": row.get("ascendant", ""),
