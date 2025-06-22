@@ -1,17 +1,19 @@
-# Используем официальный образ Python
 FROM python:3.11-slim
 
-# Устанавливаем рабочую директорию
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    gcc \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем проект
 WORKDIR /app
+COPY . /app
 
-# Копируем зависимости
-COPY requirements.txt .
-
-# Устанавливаем зависимости
+# Устанавливаем зависимости Python
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем всё остальное
-COPY . .
-
-# Указываем команду запуска
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск приложения
+CMD ["python", "main.py"]
