@@ -16,7 +16,7 @@ async def start_cmd(message: Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🌠 Открыть анкеты",
-            web_app=WebAppInfo(url="https://preeminent-kelpie-cd4c81.netlify.app/")
+            web_app=WebAppInfo(url="https://astroconnectminiapp.netlify.app/")
         )]
     ])
     await message.answer(
