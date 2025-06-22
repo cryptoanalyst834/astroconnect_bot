@@ -1,163 +1,115 @@
 import os
-import asyncio
-from fastapi import FastAPI
-from aiogram import Bot, Dispatcher, types, F
+import json
+from aiogram import Bot, Dispatcher, F, Router, types
 from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ParseMode
-from aiogram import Router
-from aiogram.client.default import DefaultBotProperties
-from dotenv import load_dotenv
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.utils.markdown import hbold
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import uvicorn
+from flatlib.chart import Chart
+from flatlib.datetime import Datetime
+from flatlib.geopos import GeoPos
 import asyncpg
-from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 # Загружаем переменные окружения
-load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Настройка Telegram бота
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# Инициализация
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 dp.include_router(router)
 
 # Состояния
 class Form(StatesGroup):
-    name = State()
-    gender = State()
     birth_date = State()
     birth_time = State()
     birth_city = State()
-    location_city = State()
-    looking_for = State()
-    about = State()
     photo = State()
 
-# PostgreSQL соединение
-async def connect_db():
+# Подключение к БД
+async def get_db():
     return await asyncpg.connect(DATABASE_URL)
 
-# Маршруты Telegram-бота
+# Расчёт натальной карты
+def generate_chart(birth_date: str, birth_time: str):
+    dt = Datetime(f"{birth_date}", f"{birth_time}", '+03:00')
+    pos = GeoPos('55n45', '37e34')  # Москва по умолчанию
+    chart = Chart(dt, pos)
+    return {obj.id: obj.sign for obj in chart.objects}
+
+# Команда /start
 @router.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
-    await message.answer("Привет! Давай начнём. Как тебя зовут?")
-    await state.set_state(Form.name)
-
-@router.message(Form.name)
-async def process_name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.answer("Укажи свой пол (м/ж):")
-    await state.set_state(Form.gender)
-
-@router.message(Form.gender)
-async def process_gender(message: Message, state: FSMContext):
-    await state.update_data(gender=message.text)
-    await message.answer("Дата рождения (ГГГГ-ММ-ДД):")
+    await message.answer("Привет! Введи свою дату рождения (ГГГГ-ММ-ДД):")
     await state.set_state(Form.birth_date)
 
+# Получение даты
 @router.message(Form.birth_date)
-async def process_birth_date(message: Message, state: FSMContext):
+async def process_date(message: Message, state: FSMContext):
     await state.update_data(birth_date=message.text)
-    await message.answer("Время рождения (например, 14:30):")
+    await message.answer("Теперь время рождения (ЧЧ:ММ):")
     await state.set_state(Form.birth_time)
 
+# Получение времени
 @router.message(Form.birth_time)
-async def process_birth_time(message: Message, state: FSMContext):
+async def process_time(message: Message, state: FSMContext):
     await state.update_data(birth_time=message.text)
-    await message.answer("Город рождения:")
+    await message.answer("Город рождения?")
     await state.set_state(Form.birth_city)
 
+# Город
 @router.message(Form.birth_city)
-async def process_birth_city(message: Message, state: FSMContext):
+async def process_city(message: Message, state: FSMContext):
     await state.update_data(birth_city=message.text)
-    await message.answer("Текущий город проживания:")
-    await state.set_state(Form.location_city)
-
-@router.message(Form.location_city)
-async def process_location_city(message: Message, state: FSMContext):
-    await state.update_data(location_city=message.text)
-    await message.answer("Кого ты ищешь (м/ж/любой):")
-    await state.set_state(Form.looking_for)
-
-@router.message(Form.looking_for)
-async def process_looking_for(message: Message, state: FSMContext):
-    await state.update_data(looking_for=message.text)
-    await message.answer("Расскажи о себе в двух словах:")
-    await state.set_state(Form.about)
-
-@router.message(Form.about)
-async def process_about(message: Message, state: FSMContext):
-    await state.update_data(about=message.text)
-    await message.answer("Пришли свою фотографию:")
+    await message.answer("Пришли своё фото:")
     await state.set_state(Form.photo)
 
+# Фото
 @router.message(Form.photo, F.photo)
 async def process_photo(message: Message, state: FSMContext):
-    photo = message.photo[-1].file_id
-    await state.update_data(photo=photo)
-    user_data = await state.get_data()
+    photo_file_id = message.photo[-1].file_id
+    data = await state.get_data()
+    
+    chart = generate_chart(data['birth_date'], data['birth_time'])
 
-    conn = await connect_db()
+    # Сохраняем в БД
+    conn = await get_db()
     await conn.execute('''
-        INSERT INTO users (
-            telegram_id, name, gender, birth_date, birth_time, birth_city, location_city, looking_for, about, photo
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        ON CONFLICT (telegram_id) DO NOTHING
-    ''',
-        message.from_user.id,
-        user_data["name"],
-        user_data["gender"],
-        user_data["birth_date"],
-        user_data["birth_time"],
-        user_data["birth_city"],
-        user_data["location_city"],
-        user_data["looking_for"],
-        user_data["about"],
-        user_data["photo"]
-    )
+        INSERT INTO users (telegram_id, birth_date, birth_time, birth_city, photo, natal_chart)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    ''', str(message.from_user.id), data['birth_date'], data['birth_time'],
+         data['birth_city'], photo_file_id, json.dumps(chart))
     await conn.close()
 
-    await message.answer("Спасибо! Анкета сохранена. Скоро ты увидишь совместимых пользователей.")
+    await message.answer("Спасибо! Данные и натальная карта сохранены.")
     await state.clear()
 
-# FastAPI часть
+# FastAPI
 app = FastAPI()
 
-# CORS, чтобы фронт мог обращаться
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # или конкретный домен
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
 
-# Модель анкеты
-class Profile(BaseModel):
-    telegram_id: int
-    name: str
-    gender: str
-    birth_date: str
-    birth_time: str
-    birth_city: str
-    location_city: str
-    looking_for: str
-    about: str
-    photo: str
-
-# API для мини-приложения
-@app.get("/profiles", response_model=list[Profile])
+@app.get("/profiles")
 async def get_profiles():
-    conn = await connect_db()
-    rows = await conn.fetch("SELECT * FROM users LIMIT 20")
+    conn = await get_db()
+    rows = await conn.fetch("SELECT telegram_id, birth_date, birth_time, birth_city, natal_chart FROM users")
     await conn.close()
-    return [dict(row) for row in rows]
+    return JSONResponse([dict(row) for row in rows])
 
-# Запуск бота
-@app.on_event("startup")
-async def startup():
-    asyncio.create_task(dp.start_polling(bot))
+# Запуск
+async def main():
+    tg_task = asyncio.create_task(dp.start_polling(bot))
+    api_task = asyncio.create_task(uvicorn.run(app, host="0.0.0.0", port=8000))
+    await asyncio.gather(tg_task, api_task)
+
+if __name__ == "__main__":
+    asyncio.run(main())
