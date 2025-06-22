@@ -1,38 +1,31 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 import asyncpg
 import os
-from contextlib import asynccontextmanager
-from bot import bot, dp
-import asyncio
+from datetime import datetime
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+app = FastAPI()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.db = await asyncpg.connect(DATABASE_URL)
-    yield
-    await app.state.db.close()
-
-app = FastAPI(lifespan=lifespan)
-
-# CORS для фронта
+# Разрешаем CORS (для Netlify и др. фронтов)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Лучше указать Netlify-домен
+    allow_origins=["https://astroconnectminiapp.netlify.app/"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-def calculate_age(birth_date_str):
-    from datetime import datetime
-    try:
-        birth_date = datetime.strptime(birth_date_str, "%d.%m.%Y")
-        today = datetime.today()
-        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    except:
-        return None
+DATABASE_URL = os.getenv("DATABASE_URL")
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Читаем токен из переменной окружения
+
+@app.on_event("startup")
+async def startup():
+    app.state.db = await asyncpg.connect(DATABASE_URL)
+
+@app.on_event("shutdown")
+async def shutdown():
+    await app.state.db.close()
 
 @app.get("/profiles")
 async def get_profiles():
@@ -42,7 +35,7 @@ async def get_profiles():
         profiles.append({
             "name": row["name"],
             "about": row["about"],
-            "photo": row["photo"],
+            "photo": row["photo"],  # file_id от Telegram
             "location_city": row["location_city"],
             "sun": row.get("sun", ""),
             "ascendant": row.get("ascendant", ""),
@@ -50,7 +43,16 @@ async def get_profiles():
         })
     return profiles
 
-# 🚀 Telegram бот запускается в фоне
-@app.on_event("startup")
-async def start_bot():
-    asyncio.create_task(dp.start_polling(bot))
+def calculate_age(birth_date_str):
+    try:
+        birth_date = datetime.strptime(birth_date_str, "%d.%m.%Y")
+        today = datetime.today()
+        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+    except:
+        return None
+
+@app.get("/photo/{file_id}")
+async def get_photo(file_id: str):
+    bot_token = os.getenv("BOT_TOKEN")
+    tg_url = f"https://api.telegram.org/file/bot{bot_token}/{file_id}"
+    return RedirectResponse(tg_url)
