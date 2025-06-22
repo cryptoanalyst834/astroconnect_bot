@@ -1,136 +1,163 @@
 import os
 import asyncio
-from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.enums import ParseMode
+from aiogram import Router
+from aiogram.client.default import DefaultBotProperties
+from dotenv import load_dotenv
 import asyncpg
-from datetime import datetime
-from flatlib.chart import Chart
-from flatlib.datetime import Datetime
-from flatlib.geopos import GeoPos
-from flatlib import const
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
+# Загружаем переменные окружения
 load_dotenv()
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-app = FastAPI()
-dp = Dispatcher()
-bot = Bot(token=BOT_TOKEN)
+# Настройка Telegram бота
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
+dp.include_router(router)
 
-# CORS для фронта
+# Состояния
+class Form(StatesGroup):
+    name = State()
+    gender = State()
+    birth_date = State()
+    birth_time = State()
+    birth_city = State()
+    location_city = State()
+    looking_for = State()
+    about = State()
+    photo = State()
+
+# PostgreSQL соединение
+async def connect_db():
+    return await asyncpg.connect(DATABASE_URL)
+
+# Маршруты Telegram-бота
+@router.message(F.text == "/start")
+async def cmd_start(message: Message, state: FSMContext):
+    await message.answer("Привет! Давай начнём. Как тебя зовут?")
+    await state.set_state(Form.name)
+
+@router.message(Form.name)
+async def process_name(message: Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer("Укажи свой пол (м/ж):")
+    await state.set_state(Form.gender)
+
+@router.message(Form.gender)
+async def process_gender(message: Message, state: FSMContext):
+    await state.update_data(gender=message.text)
+    await message.answer("Дата рождения (ГГГГ-ММ-ДД):")
+    await state.set_state(Form.birth_date)
+
+@router.message(Form.birth_date)
+async def process_birth_date(message: Message, state: FSMContext):
+    await state.update_data(birth_date=message.text)
+    await message.answer("Время рождения (например, 14:30):")
+    await state.set_state(Form.birth_time)
+
+@router.message(Form.birth_time)
+async def process_birth_time(message: Message, state: FSMContext):
+    await state.update_data(birth_time=message.text)
+    await message.answer("Город рождения:")
+    await state.set_state(Form.birth_city)
+
+@router.message(Form.birth_city)
+async def process_birth_city(message: Message, state: FSMContext):
+    await state.update_data(birth_city=message.text)
+    await message.answer("Текущий город проживания:")
+    await state.set_state(Form.location_city)
+
+@router.message(Form.location_city)
+async def process_location_city(message: Message, state: FSMContext):
+    await state.update_data(location_city=message.text)
+    await message.answer("Кого ты ищешь (м/ж/любой):")
+    await state.set_state(Form.looking_for)
+
+@router.message(Form.looking_for)
+async def process_looking_for(message: Message, state: FSMContext):
+    await state.update_data(looking_for=message.text)
+    await message.answer("Расскажи о себе в двух словах:")
+    await state.set_state(Form.about)
+
+@router.message(Form.about)
+async def process_about(message: Message, state: FSMContext):
+    await state.update_data(about=message.text)
+    await message.answer("Пришли свою фотографию:")
+    await state.set_state(Form.photo)
+
+@router.message(Form.photo, F.photo)
+async def process_photo(message: Message, state: FSMContext):
+    photo = message.photo[-1].file_id
+    await state.update_data(photo=photo)
+    user_data = await state.get_data()
+
+    conn = await connect_db()
+    await conn.execute('''
+        INSERT INTO users (
+            telegram_id, name, gender, birth_date, birth_time, birth_city, location_city, looking_for, about, photo
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT (telegram_id) DO NOTHING
+    ''',
+        message.from_user.id,
+        user_data["name"],
+        user_data["gender"],
+        user_data["birth_date"],
+        user_data["birth_time"],
+        user_data["birth_city"],
+        user_data["location_city"],
+        user_data["looking_for"],
+        user_data["about"],
+        user_data["photo"]
+    )
+    await conn.close()
+
+    await message.answer("Спасибо! Анкета сохранена. Скоро ты увидишь совместимых пользователей.")
+    await state.clear()
+
+# FastAPI часть
+app = FastAPI()
+
+# CORS, чтобы фронт мог обращаться
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Лучше указать конкретный Netlify-домен
+    allow_origins=["*"],  # или конкретный домен
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Состояния анкеты
-class Form(StatesGroup):
-    name = State()
-    about = State()
-    birth_date = State()
-    birth_time = State()
-    photo = State()
+# Модель анкеты
+class Profile(BaseModel):
+    telegram_id: int
+    name: str
+    gender: str
+    birth_date: str
+    birth_time: str
+    birth_city: str
+    location_city: str
+    looking_for: str
+    about: str
+    photo: str
 
-@app.on_event("startup")
-async def on_startup():
-    app.state.db = await asyncpg.connect(DATABASE_URL)
-    asyncio.create_task(dp.start_polling(bot))
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    await app.state.db.close()
-    await bot.session.close()
-
-# API: Отдаём анкеты
-@app.get("/profiles")
+# API для мини-приложения
+@app.get("/profiles", response_model=list[Profile])
 async def get_profiles():
-    rows = await app.state.db.fetch("SELECT * FROM users ORDER BY RANDOM() LIMIT 20")
-    profiles = []
-    for row in rows:
-        profiles.append({
-            "name": row["name"],
-            "about": row["about"],
-            "photo": row["photo"],
-            "location_city": row["location_city"],
-            "sun": row.get("sun", ""),
-            "ascendant": row.get("ascendant", ""),
-            "age": calculate_age(row["birth_date"])
-        })
-    return profiles
+    conn = await connect_db()
+    rows = await conn.fetch("SELECT * FROM users LIMIT 20")
+    await conn.close()
+    return [dict(row) for row in rows]
 
-def calculate_age(birth_date_str):
-    try:
-        birth_date = datetime.strptime(birth_date_str, "%d.%m.%Y")
-        today = datetime.today()
-        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    except:
-        return None
-
-def generate_astrology_info(data):
-    birth_date = data['birth_date']  # формат дд.мм.гггг
-    birth_time = data['birth_time']  # формат чч:мм
-    date_parts = birth_date.split(".")
-    time_parts = birth_time.split(":")
-    dt = Datetime(f"{date_parts[2]}-{date_parts[1]}-{date_parts[0]}", f"{time_parts[0]}:{time_parts[1]}", '+03:00')
-    pos = GeoPos("55.7558", "37.6173")
-    chart = Chart(dt, pos)
-    sun_sign = chart.get(const.SUN).sign
-    asc = chart.get(const.ASC).sign
-    return sun_sign, asc
-
-# ==== Telegram bot handlers ====
-
-@dp.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
-    await message.answer("Привет! Давай создадим твою анкету.\nКак тебя зовут?")
-    await state.set_state(Form.name)
-
-@dp.message(Form.name)
-async def process_name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.answer("Расскажи немного о себе")
-    await state.set_state(Form.about)
-
-@dp.message(Form.about)
-async def process_about(message: Message, state: FSMContext):
-    await state.update_data(about=message.text)
-    await message.answer("Введи дату рождения (дд.мм.гггг):")
-    await state.set_state(Form.birth_date)
-
-@dp.message(Form.birth_date)
-async def process_birth_date(message: Message, state: FSMContext):
-    await state.update_data(birth_date=message.text)
-    await message.answer("Введи время рождения (чч:мм):")
-    await state.set_state(Form.birth_time)
-
-@dp.message(Form.birth_time)
-async def process_birth_time(message: Message, state: FSMContext):
-    await state.update_data(birth_time=message.text)
-    await message.answer("Теперь отправь своё фото:")
-    await state.set_state(Form.photo)
-
-@dp.message(Form.photo, F.photo)
-async def process_photo(message: Message, state: FSMContext):
-    photo_id = message.photo[-1].file_id
-    await state.update_data(photo=photo_id)
-
-    data = await state.get_data()
-    sun, asc = generate_astrology_info(data)
-
-    await app.state.db.execute("""
-        INSERT INTO users (name, about, birth_date, birth_time, photo, sun, ascendant, location_city)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    """, data["name"], data["about"], data["birth_date"], data["birth_time"], photo_id, sun, asc, "Москва")
-
-    await message.answer("Анкета сохранена! 🎉 Ты можешь перейти в мини-приложение для поиска пары.")
-    await state.clear()
+# Запуск бота
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(dp.start_polling(bot))
