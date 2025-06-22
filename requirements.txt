@@ -3,4 +3,5 @@ python-dotenv
 flatlib==0.2.3
 asyncpg
 fastapi
-uvicorn[standard]
+uvicorn
+geopy
