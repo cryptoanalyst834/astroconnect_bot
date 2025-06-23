@@ -1,32 +1,39 @@
 import os
+import asyncio
 from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from fastapi import FastAPI
-import asyncio
-
 from astro_utils import generate_natal_chart
 from database import create_db_and_tables, save_user
 from models import User
 
+# Загрузка переменных окружения
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+# Проверка переменной окружения
+if not TOKEN:
+    raise ValueError("TELEGRAM_TOKEN не найден в .env файле")
+
+# Инициализация FastAPI и Aiogram
 app = FastAPI()
 bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
+# Состояния FSM
 class Form(StatesGroup):
     name = State()
     birth_date = State()
     birth_time = State()
     birth_place = State()
 
-@dp.message(commands=["start"])
+# Обработка команды /start
+@dp.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
     await message.answer("Привет! Как тебя зовут?")
     await state.set_state(Form.name)
@@ -54,7 +61,13 @@ async def get_place(message: Message, state: FSMContext):
     await state.update_data(birth_place=message.text)
     data = await state.get_data()
 
-    sun, asc = generate_natal_chart(data['birth_date'], data['birth_time'], data['birth_place'])
+    try:
+        sun, asc = generate_natal_chart(
+            data['birth_date'], data['birth_time'], data['birth_place']
+        )
+    except Exception as e:
+        await message.answer("Произошла ошибка при расчёте натальной карты. Проверь введённые данные.")
+        return
 
     new_user = User(
         telegram_id=str(message.from_user.id),
@@ -65,11 +78,12 @@ async def get_place(message: Message, state: FSMContext):
         sun_sign=sun,
         asc_sign=asc
     )
-    await save_user(new_user)
 
+    await save_user(new_user)
     await message.answer(f"Готово! 🌞 Солнце в знаке: {sun}, Асцендент: {asc}")
     await state.clear()
 
+# Запуск при старте FastAPI
 @app.on_event("startup")
 async def on_startup():
     await create_db_and_tables()
