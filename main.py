@@ -1,13 +1,16 @@
 import os
 import asyncio
 from dotenv import load_dotenv
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
-from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import Message
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
+
 from astro_utils import generate_natal_chart
 from database import create_db_and_tables, save_user
 from models import User
@@ -16,74 +19,79 @@ from models import User
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Проверка переменной окружения
-if not TOKEN:
-    raise ValueError("TELEGRAM_TOKEN не найден в .env файле")
-
-# Инициализация FastAPI и Aiogram
-app = FastAPI()
+# Инициализация компонентов
 bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
+app = FastAPI()
 
-# Состояния FSM
+# Настройки CORS (если frontend подключается отдельно)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Состояния формы
 class Form(StatesGroup):
     name = State()
     birth_date = State()
     birth_time = State()
     birth_place = State()
 
-# Обработка команды /start
-@dp.message(F.text == "/start")
+# Обработчики Telegram-бота
+@dp.message(F.text, Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     await message.answer("Привет! Как тебя зовут?")
     await state.set_state(Form.name)
 
 @dp.message(Form.name)
-async def get_name(message: Message, state: FSMContext):
+async def process_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
     await message.answer("Укажи дату рождения (дд.мм.гггг):")
     await state.set_state(Form.birth_date)
 
 @dp.message(Form.birth_date)
-async def get_date(message: Message, state: FSMContext):
+async def process_birth_date(message: Message, state: FSMContext):
     await state.update_data(birth_date=message.text)
-    await message.answer("Укажи время рождения (чч:мм):")
+    await message.answer("Во сколько ты родился? (чч:мм):")
     await state.set_state(Form.birth_time)
 
 @dp.message(Form.birth_time)
-async def get_time(message: Message, state: FSMContext):
+async def process_birth_time(message: Message, state: FSMContext):
     await state.update_data(birth_time=message.text)
     await message.answer("Где ты родился?")
     await state.set_state(Form.birth_place)
 
 @dp.message(Form.birth_place)
-async def get_place(message: Message, state: FSMContext):
+async def process_birth_place(message: Message, state: FSMContext):
     await state.update_data(birth_place=message.text)
     data = await state.get_data()
 
     try:
-        sun, asc = generate_natal_chart(
+        sun_sign, asc_sign = generate_natal_chart(
             data['birth_date'], data['birth_time'], data['birth_place']
         )
+
+        user = User(
+            telegram_id=str(message.from_user.id),
+            name=data['name'],
+            birth_date=data['birth_date'],
+            birth_time=data['birth_time'],
+            birth_place=data['birth_place'],
+            sun_sign=sun_sign,
+            asc_sign=asc_sign
+        )
+        await save_user(user)
+
+        await message.answer(f"🌞 Солнце: {sun_sign}\n🔭 Асцендент: {asc_sign}")
     except Exception as e:
-        await message.answer("Произошла ошибка при расчёте натальной карты. Проверь введённые данные.")
-        return
+        await message.answer("Ошибка при расчёте натальной карты. Попробуй ещё раз.")
+        print(e)
 
-    new_user = User(
-        telegram_id=str(message.from_user.id),
-        name=data['name'],
-        birth_date=data['birth_date'],
-        birth_time=data['birth_time'],
-        birth_place=data['birth_place'],
-        sun_sign=sun,
-        asc_sign=asc
-    )
-
-    await save_user(new_user)
-    await message.answer(f"Готово! 🌞 Солнце в знаке: {sun}, Асцендент: {asc}")
     await state.clear()
 
-# Запуск при старте FastAPI
+# Запуск FastAPI + Telegram polling
 @app.on_event("startup")
 async def on_startup():
     await create_db_and_tables()
