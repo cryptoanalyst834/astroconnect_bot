@@ -1,8 +1,8 @@
 aiogram==3.4.1
 fastapi
 uvicorn
-sqlalchemy
 asyncpg
+sqlalchemy
+python-dotenv
 flatlib==0.2.3
 geopy
-python-dotenv
