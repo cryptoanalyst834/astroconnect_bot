@@ -5,10 +5,9 @@ from datetime import datetime
 from geopy.geocoders import Nominatim
 
 def generate_natal_chart(date: str, time: str, location: str = 'Moscow'):
-    dt = datetime.strptime(f"{date} {time}", "%d.%m.%Y %H:%M")
     geo = GeoPos('55.7558', '37.6176')  # Москва
 
-    if location and location.lower() != 'moscow':
+    if location.lower() != 'moscow':
         try:
             geolocator = Nominatim(user_agent="astro_bot")
             loc = geolocator.geocode(location)
@@ -17,6 +16,6 @@ def generate_natal_chart(date: str, time: str, location: str = 'Moscow'):
         except:
             pass
 
-    date_obj = Datetime(dt.strftime('%Y/%m/%d'), dt.strftime('%H:%M'), '+03:00')
+    date_obj = Datetime(datetime.strptime(date, '%d.%m.%Y').strftime('%Y/%m/%d'), time, '+03:00')
     chart = Chart(date_obj, geo)
     return chart.get('SUN').sign, chart.get('ASC').sign
