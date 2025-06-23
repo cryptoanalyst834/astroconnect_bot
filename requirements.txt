@@ -6,3 +6,4 @@ sqlalchemy
 python-dotenv
 flatlib==0.2.3
 geopy
+psycopg2-binary
