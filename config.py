@@ -1,7 +1,12 @@
 import os
 from dotenv import load_dotenv
 
+# Один вызов load_dotenv для всего проекта
 load_dotenv()
 
-TOKEN = os.getenv('TOKEN')
-DATABASE_URL = os.getenv('DATABASE_URL')
+# Теперь эти переменные можно импортировать в любой модуль
+TOKEN        = os.getenv("TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not TOKEN or not DATABASE_URL:
+    raise RuntimeError("Не установлены обязательные переменные окружения: TOKEN и DATABASE_URL")
