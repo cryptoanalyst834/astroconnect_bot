@@ -1,27 +1,24 @@
-from flatlib.chart import Chart
-from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
-from flatlib.const import SUN, ASC
-from geopy.geocoders import Nominatim
+from flatlib.datetime import Datetime
+from flatlib.chart import Chart
+from flatlib import const
 
-def generate_astrology_data(birth_date: str, birth_time: str, birth_place: str):
+def generate_astrology_data(date: str, time: str, lat: float, lon: float):
+    """
+    Генерация натальной карты на основе даты, времени и координат.
+    Возвращает знак Солнца и Асцендент.
+    """
     try:
-        geolocator = Nominatim(user_agent="astro_bot")
-        location = geolocator.geocode(birth_place)
-        if not location:
-            return None, None
+        datetime = Datetime(f'{date}', f'{time}', '+03:00')  # Можно сменить offset
+        pos = GeoPos(str(lat), str(lon))
+        chart = Chart(datetime, pos, IDs=const.LIST_OBJECTS)
 
-        pos = GeoPos(str(location.latitude), str(location.longitude))
-        dt = Datetime(birth_date, birth_time, "+03:00")
-        chart = Chart(dt, pos)
+        sun_sign = chart.get(const.SUN).sign
+        asc_sign = chart.get(const.ASC).sign
 
-        sun = chart.get(SUN)
-        asc = chart.get(ASC)
-
-        zodiac_sign = sun.sign
-        ascendant = asc.sign
-        return zodiac_sign, ascendant
-
+        return {
+            'sun_sign': sun_sign,
+            'asc_sign': asc_sign
+        }
     except Exception as e:
-        print(f"Error in astrology generation: {e}")
-        return None, None
+        return {'error': str(e)}
