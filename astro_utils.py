@@ -1,18 +1,17 @@
-import asyncio
-import logging
 from flatlib.chart import Chart
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from geopy.geocoders import Nominatim
+import asyncio
+import logging
 
 logger = logging.getLogger(__name__)
 
-# Создаём geolocator с таймаутом
-geolocator = Nominatim(user_agent="astroconnect", timeout=10)
 
 async def get_coordinates(city_name: str):
     try:
-        location = await asyncio.to_thread(geolocator.geocode, city_name)
+        geolocator = Nominatim(user_agent="astroconnect")
+        location = await asyncio.to_thread(geolocator.geocode, city_name, timeout=10)
         if location:
             lat = f"{location.latitude:.4f}"
             lon = f"{location.longitude:.4f}"
@@ -25,7 +24,11 @@ async def get_coordinates(city_name: str):
         logger.error(f"Ошибка геокодинга: {e}")
         return "55.7558", "37.6176"
 
-async def generate_natal_chart(date_str, time_str, city_name):
+
+async def generate_astrology_data(date_str: str, time_str: str, city_name: str):
+    """
+    Возвращает знак зодиака (Солнце) и асцендент по дате, времени и городу.
+    """
     lat, lon = await get_coordinates(city_name)
     try:
         date_parts = date_str.split(".")
