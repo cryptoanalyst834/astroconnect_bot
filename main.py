@@ -107,7 +107,39 @@ async def process_photo(message: types.Message, state: FSMContext):
     await message.answer("✅ Анкета сохранена! Теперь ты можешь открыть мини-приложение и смотреть совместимость.")
     await state.clear()
 
-# --- Startup ---
+# === Продолжение main.py ===
+
+# FastAPI и роуты
+@app.get("/profiles", response_model=List[dict])
+async def get_profiles():
+    async with async_session() as session:
+        result = await get_all_profiles(session)
+        return result
+
+@app.post("/profile")
+async def create_profile(profile: dict):
+    async with async_session() as session:
+        await add_user_profile(session, profile)
+        return {"status": "ok"}
+
+# Стартовая инициализация базы (можно вызывать вручную)
+async def on_startup():
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("База данных инициализирована.")
+
+# Запуск бота и сервера
+async def main():
+    await on_startup()
+    dp.include_router(router)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    import uvicorn
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())  # запускаем бота
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+
 
 async def on_startup():
     await init_db()
