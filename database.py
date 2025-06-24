@@ -1,26 +1,36 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncEngine
+from sqlalchemy.orm import declarative_base
 from models import UserProfile
-from db_base import Base
-import os
-from dotenv import load_dotenv
+from typing import List
 
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = "sqlite+aiosqlite:///./test.db"  # (это будет заменено через .env)
 
-engine = create_async_engine(DATABASE_URL, echo=False)
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+Base = declarative_base()
 
-async def get_session() -> AsyncSession:
-    async with async_session() as session:
-        yield session
 
-async def add_user_profile(session: AsyncSession, data: dict):
-    profile = UserProfile(**data)
+# ✅ ВАЖНО: init_db должен быть здесь
+async def init_db(engine: AsyncEngine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def add_user_profile(session: AsyncSession, name, birthdate, birthtime, city, zodiac, ascendant, photo_path):
+    profile = UserProfile(
+        name=name,
+        birthdate=birthdate,
+        birthtime=birthtime,
+        city=city,
+        zodiac=zodiac,
+        ascendant=ascendant,
+        photo_path=photo_path
+    )
     session.add(profile)
     await session.commit()
 
-async def get_all_profiles(session: AsyncSession):
-    result = await session.execute(select(UserProfile))
-    return result.scalars().all()
+
+async def get_all_profiles(session: AsyncSession) -> List[dict]:
+    result = await session.execute(
+        UserProfile.__table__.select()
+    )
+    rows = result.fetchall()
+    return [dict(row._mapping) for row in rows]
