@@ -1,9 +1,8 @@
 aiogram==3.4.1
-fastapi
-uvicorn
-asyncpg
-sqlalchemy
-python-dotenv
+fastapi==0.110.0
+uvicorn==0.29.0
+python-dotenv==1.0.1
+asyncpg==0.29.0
+sqlalchemy==2.0.30
 flatlib==0.2.3
-geopy
-psycopg2-binary
+geopy==2.4.1
