@@ -1,25 +1,18 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from models import Base
+from sqlmodel import SQLModel, create_engine, Session, select
+from models import UserProfile
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-engine = create_async_engine(DATABASE_URL, echo=True)
-AsyncSessionLocal = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+engine = create_engine(DATABASE_URL, echo=False)
 
 async def create_db_and_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    SQLModel.metadata.create_all(engine)
 
-async def save_user(user_data):
-    async with AsyncSessionLocal() as session:
-        session.add(user_data)
-        await session.commit()
+async def save_user_profile(profile: UserProfile):
+    with Session(engine) as session:
+        session.add(profile)
+        session.commit()
 
-async def get_all_users():
-    async with AsyncSessionLocal() as session:
-        result = await session.execute("SELECT * FROM users")
-        return result.fetchall()
+async def get_all_profiles():
+    with Session(engine) as session:
+        return session.exec(select(UserProfile)).all()
