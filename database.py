@@ -1,18 +1,14 @@
-from sqlmodel import SQLModel, create_engine, Session, select
-from models import UserProfile
 import os
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=False)
+DATABASE_URL = os.getenv("DATABASE_URL").replace("postgres://", "postgresql+asyncpg://")
 
-async def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
+engine = create_async_engine(DATABASE_URL, echo=False)
+async_session = async_sessionmaker(engine, expire_on_commit=False)
+Base = declarative_base()
 
-async def save_user_profile(profile: UserProfile):
-    with Session(engine) as session:
-        session.add(profile)
-        session.commit()
-
-async def get_all_profiles():
-    with Session(engine) as session:
-        return session.exec(select(UserProfile)).all()
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
