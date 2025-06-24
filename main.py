@@ -1,38 +1,21 @@
-import os
-import logging
+import asyncio
 from fastapi import FastAPI
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message
-from aiogram.client.default import DefaultBotProperties
-from dotenv import load_dotenv
-from contextlib import asynccontextmanager
+from config import TOKEN
+from handlers.start import router as start_router
+from handlers.profile import router as profile_router
+from api.router import api_router
 
-load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN")
-
-# Логирование
-logging.basicConfig(level=logging.INFO)
-
-# Инициализация Telegram-бота
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-@dp.message(F.text == "/start")
-async def cmd_start(message: Message):
-    await message.answer("Привет! Я бот AstroConnect 🚀")
+dp.include_router(start_router)
+dp.include_router(profile_router)
 
-# Lifespan context (вместо @app.on_event("startup"))
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Запускаем бота в фоне
-    import asyncio
-    asyncio.create_task(dp.start_polling(bot))
-    yield
-
-# Инициализация FastAPI
-app = FastAPI(title="AstroConnect API", lifespan=lifespan)
-
-# FastAPI API роутер
-from api.router import api_router
+app = FastAPI()
 app.include_router(api_router)
+
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(dp.start_polling(bot))
