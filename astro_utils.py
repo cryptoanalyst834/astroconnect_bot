@@ -17,8 +17,8 @@ async def get_coordinates(city_name: str):
             logger.info(f"Геокодинг для {city_name}: {lat}, {lon}")
             return lat, lon
         else:
-            logger.warning(f"Город не найден: {city_name}, используем Москву по умолчанию")
-            return "55.7558", "37.6176"  # Москва
+            logger.warning(f"Город не найден: {city_name}, используется Москва")
+            return "55.7558", "37.6176"
     except Exception as e:
         logger.error(f"Ошибка геокодинга: {e}")
         return "55.7558", "37.6176"
