@@ -2,46 +2,28 @@ from flatlib.chart import Chart
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from geopy.geocoders import Nominatim
-import asyncio
-import logging
 
-logger = logging.getLogger(__name__)
+async def generate_astrology_data(birth_date: str, birth_time: str, birth_place: str):
+    # Объединяем дату и время
+    date_parts = birth_date.split(".")
+    day, month, year = map(int, date_parts)
+    time_parts = birth_time.split(":")
+    hour, minute = map(int, time_parts)
 
+    # Геопозиция
+    geolocator = Nominatim(user_agent="astro_bot")
+    location = geolocator.geocode(birth_place)
+    if not location:
+        raise ValueError("Не удалось найти координаты места рождения")
 
-async def get_coordinates(city_name: str):
-    try:
-        geolocator = Nominatim(user_agent="astroconnect")
-        location = await asyncio.to_thread(geolocator.geocode, city_name, timeout=10)
-        if location:
-            lat = f"{location.latitude:.4f}"
-            lon = f"{location.longitude:.4f}"
-            logger.info(f"Геокодинг для {city_name}: {lat}, {lon}")
-            return lat, lon
-        else:
-            logger.warning(f"Город не найден: {city_name}, используется Москва")
-            return "55.7558", "37.6176"
-    except Exception as e:
-        logger.error(f"Ошибка геокодинга: {e}")
-        return "55.7558", "37.6176"
+    pos = GeoPos(str(location.latitude), str(location.longitude))
+    date = Datetime(f"{year}-{month:02d}-{day:02d}", f"{hour:02d}:{minute:02d}", "+03:00")
 
+    chart = Chart(date, pos)
+    sun = chart.get("SUN")
+    asc = chart.get("ASC")
 
-async def generate_astrology_data(date_str: str, time_str: str, city_name: str):
-    """
-    Возвращает знак зодиака (Солнце) и асцендент по дате, времени и городу.
-    """
-    lat, lon = await get_coordinates(city_name)
-    try:
-        date_parts = date_str.split(".")
-        year, month, day = int(date_parts[2]), int(date_parts[1]), int(date_parts[0])
-        dt = Datetime(f"{year}-{month:02}-{day:02}", time_str, "+03:00")
-        pos = GeoPos(lat, lon)
-        chart = Chart(dt, pos)
-        sun = chart.get("SUN")
-        asc = chart.get("ASC")
-        return {
-            "zodiac": sun.sign,
-            "ascendant": asc.sign
-        }
-    except Exception as e:
-        logger.error(f"Ошибка расчёта натальной карты: {e}")
-        raise
+    return {
+        "zodiac_sign": sun.sign,
+        "ascendant": asc.sign
+    }
