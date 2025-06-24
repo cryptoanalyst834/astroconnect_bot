@@ -6,27 +6,23 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
-from aiogram.webhook.aiohttp_server import setup_application
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from database import create_db_and_tables, save_user_profile, get_all_profiles
-from astro_utils import generate_natal_chart
+from database import init_db, async_session
 from models import UserProfile
+from astro_utils import generate_natal_chart
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class Form(StatesGroup):
     name = State()
@@ -43,7 +39,7 @@ async def cmd_start(message: Message, state: FSMContext):
 @dp.message(Form.name)
 async def process_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
-    await message.answer("Укажи дату рождения (в формате ДД.ММ.ГГГГ):")
+    await message.answer("Укажи дату рождения (ДД.ММ.ГГГГ):")
     await state.set_state(Form.birth_date)
 
 @dp.message(Form.birth_date)
@@ -70,31 +66,38 @@ async def process_photo(message: Message, state: FSMContext):
     file_id = photo.file_id
     data = await state.get_data()
 
-    natal_data = generate_natal_chart(
+    natal_data = await generate_natal_chart(
         data["birth_date"], data["birth_time"], data["birth_place"]
     )
 
-    profile = UserProfile(
-        telegram_id=message.from_user.id,
-        name=data["name"],
-        birth_date=data["birth_date"],
-        birth_time=data["birth_time"],
-        birth_place=data["birth_place"],
-        photo_id=file_id,
-        zodiac=natal_data["zodiac"],
-        ascendant=natal_data["ascendant"]
+    async with async_session() as session:
+        profile = UserProfile(
+            telegram_id=message.from_user.id,
+            name=data["name"],
+            birth_date=data["birth_date"],
+            birth_time=data["birth_time"],
+            birth_place=data["birth_place"],
+            photo_id=file_id,
+            zodiac=natal_data["zodiac"],
+            ascendant=natal_data["ascendant"]
+        )
+        session.add(profile)
+        await session.commit()
+
+    await message.answer(
+        f"Анкета сохранена! Ты — {natal_data['zodiac']}, асцендент {natal_data['ascendant']}."
     )
-    await save_user_profile(profile)
-    await message.answer(f"Анкета сохранена! Ты — {natal_data['zodiac']}, асцендент {natal_data['ascendant']}.")
     await state.clear()
 
 @app.get("/profiles")
 async def get_profiles():
-    profiles = await get_all_profiles()
-    return JSONResponse(content=[profile.model_dump() for profile in profiles])
+    async with async_session() as session:
+        result = await session.execute(select(UserProfile))
+        profiles = result.scalars().all()
+        return JSONResponse(content=[profile.to_dict() for profile in profiles])
 
 async def main():
-    await create_db_and_tables()
+    await init_db()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
