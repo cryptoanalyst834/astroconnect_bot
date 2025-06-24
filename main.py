@@ -17,25 +17,12 @@ from models import UserProfile
 from astro_utils import generate_natal_chart
 from sqlalchemy.future import select
 
-# 🔹 Логирование
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# 🔹 Переменные окружения
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
-
-# 🔹 FastAPI
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# 🔹 FSM-состояния
 class Form(StatesGroup):
     name = State()
     birth_date = State()
@@ -43,7 +30,6 @@ class Form(StatesGroup):
     birth_place = State()
     photo = State()
 
-# 🔹 Команды бота
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
     logger.info(f"/start от {message.from_user.id}")
@@ -85,7 +71,6 @@ async def process_photo(message: Message, state: FSMContext):
     file_id = photo.file_id
     data = await state.get_data()
 
-    # Генерация натальной карты
     try:
         natal_data = await generate_natal_chart(
             data["birth_date"], data["birth_time"], data["birth_place"]
@@ -96,7 +81,6 @@ async def process_photo(message: Message, state: FSMContext):
         await message.answer("Ошибка при расчёте натальной карты. Попробуй позже.")
         return
 
-    # Получение URL фото
     try:
         file_info = await bot.get_file(file_id)
         photo_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_info.file_path}"
@@ -104,7 +88,6 @@ async def process_photo(message: Message, state: FSMContext):
         logger.error(f"Ошибка получения photo_url: {e}")
         photo_url = ""
 
-    # Сохранение в базу
     try:
         async with async_session() as session:
             profile = UserProfile(
@@ -120,10 +103,10 @@ async def process_photo(message: Message, state: FSMContext):
             )
             session.add(profile)
             await session.commit()
-            logger.info(f"Анкета сохранена: {profile.name} ({profile.zodiac}/{profile.ascendant})")
+            logger.info(f"Анкета {profile.name} сохранена")
     except Exception as e:
         logger.error(f"Ошибка при сохранении анкеты: {e}")
-        await message.answer("Ошибка при сохранении анкеты. Попробуй позже.")
+        await message.answer("Ошибка при сохранении анкеты.")
         return
 
     await message.answer(
@@ -131,7 +114,6 @@ async def process_photo(message: Message, state: FSMContext):
     )
     await state.clear()
 
-# 🔹 API: список анкет
 @app.get("/profiles")
 async def get_profiles():
     logger.info("GET /profiles")
@@ -145,14 +127,19 @@ async def get_profiles():
         logger.error(f"Ошибка API /profiles: {e}")
         return JSONResponse(content={"error": "Ошибка на сервере"}, status_code=500)
 
-# 🔹 Точка входа
 async def main():
-    try:
-        await init_db()
-        logger.info("База данных инициализирована")
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.error(f"Ошибка запуска: {e}")
+    global TELEGRAM_TOKEN, bot, dp
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+    if not TELEGRAM_TOKEN:
+        raise ValueError("TELEGRAM_TOKEN не задан")
+    bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
+    dp = Dispatcher(storage=MemoryStorage())
+
+    dp.include_routers(dp.router)
+
+    await init_db()
+    logger.info("База данных инициализирована")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
