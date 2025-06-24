@@ -1,13 +1,28 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlalchemy import Column, Integer, String
+from database import Base
 
-class UserProfile(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    telegram_id: int
-    name: str
-    birth_date: str
-    birth_time: str
-    birth_place: str
-    photo_id: str
-    zodiac: str
-    ascendant: str
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(Integer)
+    name = Column(String)
+    birth_date = Column(String)
+    birth_time = Column(String)
+    birth_place = Column(String)
+    photo_id = Column(String)
+    zodiac = Column(String)
+    ascendant = Column(String)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "telegram_id": self.telegram_id,
+            "name": self.name,
+            "birth_date": self.birth_date,
+            "birth_time": self.birth_time,
+            "birth_place": self.birth_place,
+            "photo_id": self.photo_id,
+            "zodiac": self.zodiac,
+            "ascendant": self.ascendant,
+        }
