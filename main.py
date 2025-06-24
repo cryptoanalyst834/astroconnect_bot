@@ -51,15 +51,3 @@ app.include_router(api_router, prefix="/api")
 @app.get("/")
 async def root():
     return {"status": "ok", "service": "AstroConnect"}
-
-# Если вы всё же хотите deprecated-стиль — можно убрать lifespan и сделать так:
-#
-# @app.on_event("startup")
-# async def on_startup():
-#     await init_db()
-#     asyncio.create_task(dp.start_polling(bot))
-#
-# но lifespan предпочтительнее.
-
-# Запуск осуществляется командой:
-# uvicorn main:app --host 0.0.0.0 --port $PORT
