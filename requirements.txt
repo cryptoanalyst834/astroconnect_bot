@@ -1,10 +1,9 @@
 aiogram==3.4.1
 fastapi
-uvicorn[standard]
+uvicorn
 asyncpg
 sqlalchemy
 python-dotenv
 flatlib==0.2.3
 geopy
 psycopg2-binary
-loguru
