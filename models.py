@@ -11,6 +11,7 @@ class UserProfile(Base):
     birth_time = Column(String)
     birth_place = Column(String)
     photo_id = Column(String)
+    photo_url = Column(String)
     zodiac = Column(String)
     ascendant = Column(String)
 
@@ -23,6 +24,7 @@ class UserProfile(Base):
             "birth_time": self.birth_time,
             "birth_place": self.birth_place,
             "photo_id": self.photo_id,
+            "photo_url": self.photo_url,
             "zodiac": self.zodiac,
             "ascendant": self.ascendant,
         }
