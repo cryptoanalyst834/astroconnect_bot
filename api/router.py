@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-api_router = APIRouter()
+router = APIRouter()
 
-@api_router.get("/")
+@router.get("/")
 async def root():
-    return {"message": "AstroConnect API is running"}
+    return {"message": "API работает"}
