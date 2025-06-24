@@ -1,16 +1,13 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import declarative_base
+from sqlmodel import SQLModel, Field
+from typing import Optional
 
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(String, unique=True, index=True)
-    name = Column(String)
-    birth_date = Column(String)
-    birth_time = Column(String)
-    birth_place = Column(String)
-    sun_sign = Column(String)
-    asc_sign = Column(String)
+class UserProfile(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    telegram_id: int
+    name: str
+    birth_date: str
+    birth_time: str
+    birth_place: str
+    photo_id: str
+    zodiac: str
+    ascendant: str
