@@ -1,115 +1,97 @@
-import asyncio
-import logging
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
-from fastapi import FastAPI
-from database import init_db, add_user_profile, get_all_profiles
-from models import UserProfile
-from astro_utils import generate_astrology_data
-from aiogram.types import FSInputFile
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from starlette.responses import JSONResponse
 import os
+import logging
+import asyncio
+from typing import List
+
+from aiogram import Bot, Dispatcher, F
+from aiogram.enums import ParseMode
+from aiogram.types import Message
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.utils.markdown import hbold
+from aiogram.types import FSInputFile
+from aiogram import Router
+
+from fastapi import FastAPI
 from dotenv import load_dotenv
-from states import RegistrationState
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from models import Base, UserProfile
+from database import add_user_profile, get_all_profiles
+from astro_utils import generate_astrology_data
 
 load_dotenv()
 
-# --- Logging ---
+# === Логгер ===
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- Bot Setup ---
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=TOKEN, parse_mode=ParseMode.MARKDOWN)
-dp = Dispatcher(storage=MemoryStorage())
+# === Telegram bot ===
+TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+router = Router()
 
-# --- FastAPI Setup ---
+# === FastAPI ===
 app = FastAPI()
 
-@app.get("/profiles")
-async def read_profiles():
-    profiles = await get_all_profiles()
-    return profiles
+# === Database ===
+DATABASE_URL = os.getenv("DATABASE_URL")
+async_engine = create_async_engine(DATABASE_URL, echo=False)
+async_session = sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
 
-# --- Bot Handlers ---
-
-@dp.message(CommandStart())
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()
-    WELCOME_TEXT = (
-        "✨ *Добро пожаловать в AstroConnect!* ✨\n\n"
-        "🔮 Здесь ты сможешь найти совместимого партнёра по звёздам — с помощью астрологии и натальной карты.\n\n"
-        "🪐 *Что умеет бот:*\n"
-        "— Построить твою натальную карту\n"
-        "— Сохранить анкету\n"
-        "— Найти подходящих партнёров по совместимости\n\n"
-        "🚀 *Готов(а) начать?* Жми /profile, чтобы заполнить анкету!"
+# === Handlers ===
+@router.message(F.text == "/start")
+async def cmd_start(message: Message):
+    welcome_text = (
+        f"\U0001F4AB <b>Добро пожаловать в AstroConnect</b>!\n\n"
+        "Это астрологический сервис знакомств,\n"
+        "где вы можете найти свою идеальную пару по звёздам.\n\n"
+        "Что умеет бот:\n"
+        "\u2022 Рассчитывает натальную карту\n"
+        "\u2022 Анализирует астрологическую совместимость\n"
+        "\u2022 Помогает найти подходящего партнёра по дате рождения\n\n"
+        "Отправьте свою дату рождения, время и город — и мы начнём!"
     )
-    await message.answer(WELCOME_TEXT)
+    await message.answer(welcome_text)
 
-@dp.message(Command("profile"))
-async def create_profile(message: types.Message, state: FSMContext):
-    await message.answer("Как тебя зовут?")
-    await state.set_state(RegistrationState.name)
+@router.message()
+async def handle_profile(message: Message):
+    try:
+        # Предполагаем, что пользователь присылает дату, время и город
+        user_input = message.text.strip()
+        birth_date, birth_time, city = [x.strip() for x in user_input.split(",")]
 
-@dp.message(RegistrationState.name)
-async def process_name(message: types.Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.answer("Когда ты родился? (в формате ДД.ММ.ГГГГ)")
-    await state.set_state(RegistrationState.birth_date)
+        # Генерация астрологических данных
+        astro_data = await generate_astrology_data(birth_date, birth_time, city)
 
-@dp.message(RegistrationState.birth_date)
-async def process_birth_date(message: types.Message, state: FSMContext):
-    await state.update_data(birth_date=message.text)
-    await message.answer("В какое время ты родился? (например, 14:30)")
-    await state.set_state(RegistrationState.birth_time)
+        # Сохранение в БД
+        async with async_session() as session:
+            profile = UserProfile(
+                telegram_id=message.from_user.id,
+                username=message.from_user.username,
+                birth_date=birth_date,
+                birth_time=birth_time,
+                city=city,
+                sun_sign=astro_data["sun_sign"],
+                ascendant=astro_data["ascendant"]
+            )
+            await add_user_profile(session, profile)
 
-@dp.message(RegistrationState.birth_time)
-async def process_birth_time(message: types.Message, state: FSMContext):
-    await state.update_data(birth_time=message.text)
-    await message.answer("Где ты родился? (город, страна)")
-    await state.set_state(RegistrationState.birth_place)
+        response = (
+            f"<b>Ваша натальная карта:</b>\n"
+            f"Знак Солнца: {astro_data['sun_sign']}\n"
+            f"Асцендент: {astro_data['ascendant']}\n\n"
+            "Вы успешно добавлены в AstroConnect! \U0001F48D"
+        )
+        await message.answer(response)
 
-@dp.message(RegistrationState.birth_place)
-async def process_birth_place(message: types.Message, state: FSMContext):
-    await state.update_data(birth_place=message.text)
-    await message.answer("Отправь свою фотографию")
-    await state.set_state(RegistrationState.photo)
+    except Exception as e:
+        logger.exception("Ошибка при обработке профиля")
+        await message.answer("Пожалуйста, отправьте данные в формате: \n<дата рождения>, <время>, <город>")
 
-@dp.message(RegistrationState.photo, F.photo)
-async def process_photo(message: types.Message, state: FSMContext):
-    photo = message.photo[-1]
-    file_id = photo.file_id
-    await state.update_data(photo_id=file_id)
-
-    data = await state.get_data()
-
-    astro_data = await generate_astrology_data(
-        birth_date=data["birth_date"],
-        birth_time=data["birth_time"],
-        birth_place=data["birth_place"]
-    )
-
-    await add_user_profile(
-        telegram_id=message.from_user.id,
-        name=data["name"],
-        birth_date=data["birth_date"],
-        birth_time=data["birth_time"],
-        birth_place=data["birth_place"],
-        photo_id=file_id,
-        zodiac_sign=astro_data["zodiac_sign"],
-        ascendant=astro_data["ascendant"]
-    )
-
-    await message.answer("✅ Анкета сохранена! Теперь ты можешь открыть мини-приложение и смотреть совместимость.")
-    await state.clear()
-
-# === Продолжение main.py ===
-
-# FastAPI и роуты
+# === FastAPI routes ===
 @app.get("/profiles", response_model=List[dict])
 async def get_profiles():
     async with async_session() as session:
@@ -122,13 +104,13 @@ async def create_profile(profile: dict):
         await add_user_profile(session, profile)
         return {"status": "ok"}
 
-# Стартовая инициализация базы (можно вызывать вручную)
+# === DB init ===
 async def on_startup():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("База данных инициализирована.")
 
-# Запуск бота и сервера
+# === Run bot and API ===
 async def main():
     await on_startup()
     dp.include_router(router)
@@ -137,14 +119,5 @@ async def main():
 if __name__ == "__main__":
     import uvicorn
     loop = asyncio.get_event_loop()
-    loop.create_task(main())  # запускаем бота
+    loop.create_task(main())  # запуск бота
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
-
-async def on_startup():
-    await init_db()
-    logging.info("Bot and DB initialized")
-
-if __name__ == "__main__":
-    asyncio.run(on_startup())
-    dp.run_polling(bot)
