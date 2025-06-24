@@ -1,5 +1,7 @@
 import os
-import logging
+import loggingfrom db_base import Base
+from models import UserProfile
+from database import get_session, add_user_profile, get_all_profiles
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
