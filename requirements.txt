@@ -6,4 +6,3 @@ sqlalchemy==2.0.30
 python-dotenv==1.0.1
 flatlib==0.2.3
 geopy==2.4.1
-psycopg2-binary==2.9.9
