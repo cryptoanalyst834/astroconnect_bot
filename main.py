@@ -1,144 +1,119 @@
 import os
+import asyncio
 import logging
-from db_base import Base
-from models import UserProfile
-from database import get_session, add_user_profile, get_all_profiles
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message
 from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import FSInputFile
+from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from database import init_db, add_user_profile, get_all_profiles
+from astro_utils import generate_astrology_data
 
-from astro_utils import generate_natal_chart
-from models import Base, UserProfile
-from database import get_session, add_user_profile, get_all_profiles
-
-import uvicorn
-
-# Load environment variables
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Database
-engine = create_async_engine(DATABASE_URL, echo=False)
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
-# FastAPI app
-app = FastAPI()
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Bot
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
+# Telegram bot setup
+TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
+# FastAPI
+app = FastAPI()
 
-# States
-class Form(StatesGroup):
+# Database
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_async_engine(DATABASE_URL, echo=False)
+async_session = async_sessionmaker(engine, expire_on_commit=False)
+
+
+# FSM для регистрации анкеты
+class ProfileState(StatesGroup):
     name = State()
-    birth_date = State()
-    birth_time = State()
-    birth_city = State()
-    about = State()
+    birthdate = State()
+    birthtime = State()
+    birthcity = State()
     photo = State()
 
 
 @dp.message(F.text == "/start")
-async def cmd_start(message: Message, state: FSMContext):
-    await message.answer("👋 Привет! Давай построим твою натальную карту и создадим анкету. Как тебя зовут?")
-    await state.set_state(Form.name)
+async def start(message: Message, state: FSMContext):
+    await message.answer("Привет! Давай создадим твою астрологическую анкету.\nКак тебя зовут?")
+    await state.set_state(ProfileState.name)
 
 
-@dp.message(Form.name)
-async def process_name(message: Message, state: FSMContext):
+@dp.message(ProfileState.name)
+async def get_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
-    await message.answer("📅 Введи дату рождения (дд.мм.гггг):")
-    await state.set_state(Form.birth_date)
+    await message.answer("Укажи дату рождения (в формате ДД.ММ.ГГГГ):")
+    await state.set_state(ProfileState.birthdate)
 
 
-@dp.message(Form.birth_date)
-async def process_birth_date(message: Message, state: FSMContext):
-    await state.update_data(birth_date=message.text)
-    await message.answer("⏰ Введи время рождения (чч:мм):")
-    await state.set_state(Form.birth_time)
+@dp.message(ProfileState.birthdate)
+async def get_birthdate(message: Message, state: FSMContext):
+    await state.update_data(birthdate=message.text)
+    await message.answer("Укажи время рождения (в формате ЧЧ:ММ):")
+    await state.set_state(ProfileState.birthtime)
 
 
-@dp.message(Form.birth_time)
-async def process_birth_time(message: Message, state: FSMContext):
-    await state.update_data(birth_time=message.text)
-    await message.answer("🏙️ В каком городе ты родился(ась)?")
-    await state.set_state(Form.birth_city)
+@dp.message(ProfileState.birthtime)
+async def get_birthtime(message: Message, state: FSMContext):
+    await state.update_data(birthtime=message.text)
+    await message.answer("Укажи город рождения:")
+    await state.set_state(ProfileState.birthcity)
 
 
-@dp.message(Form.birth_city)
-async def process_birth_city(message: Message, state: FSMContext):
-    await state.update_data(birth_city=message.text)
-    await message.answer("💬 Расскажи немного о себе:")
-    await state.set_state(Form.about)
+@dp.message(ProfileState.birthcity)
+async def get_birthcity(message: Message, state: FSMContext):
+    await state.update_data(birthcity=message.text)
+    await message.answer("Отправь свою фотографию:")
+    await state.set_state(ProfileState.photo)
 
 
-@dp.message(Form.about)
-async def process_about(message: Message, state: FSMContext):
-    await state.update_data(about=message.text)
-    await message.answer("📸 Отправь своё фото:")
-    await state.set_state(Form.photo)
+@dp.message(ProfileState.photo)
+async def get_photo(message: Message, state: FSMContext):
+    if not message.photo:
+        await message.answer("Пожалуйста, пришли фотографию.")
+        return
 
-
-@dp.message(Form.photo)
-async def process_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
     photo = message.photo[-1]
     file = await bot.get_file(photo.file_id)
-    file_path = file.file_path
-    photo_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
+    file_path = f"photos/{photo.file_id}.jpg"
+    await bot.download_file(file.file_path, file_path)
 
-    chart = await generate_natal_chart(
-        date_str=data["birth_date"],
-        time_str=data["birth_time"],
-        city_name=data["birth_city"]
+    data = await state.get_data()
+    astrology = generate_astrology_data(
+        birthdate=data["birthdate"],
+        birthtime=data["birthtime"],
+        city=data["birthcity"]
     )
 
-    profile_data = {
-        "telegram_id": message.from_user.id,
-        "name": data["name"],
-        "birth_date": data["birth_date"],
-        "birth_time": data["birth_time"],
-        "birth_city": data["birth_city"],
-        "about": data["about"],
-        "photo_url": photo_url,
-        "zodiac": chart["zodiac"],
-        "ascendant": chart["ascendant"],
-    }
-
     async with async_session() as session:
-        await add_user_profile(session, profile_data)
+        await add_user_profile(
+            session=session,
+            name=data["name"],
+            birthdate=data["birthdate"],
+            birthtime=data["birthtime"],
+            city=data["birthcity"],
+            zodiac=astrology["zodiac_sign"],
+            ascendant=astrology["ascendant"],
+            photo_path=file_path
+        )
 
-    await message.answer("✅ Анкета сохранена! Теперь ты можешь перейти к поиску.")
+    await message.answer(
+        f"Анкета создана!\n\n"
+        f"<b>Имя:</b> {data['name']}\n"
+        f"<b>Знак Зодиака:</b> {astrology['zodiac_sign']}\n"
+        f"<b>Асцендент:</b> {astrology['ascendant']}"
+    )
     await state.clear()
 
 
-# FastAPI route
+# FastAPI endpoint для отдачи анкет фронтенду
 @app.get("/profiles")
 async def get_profiles():
     async with async_session() as session:
@@ -146,15 +121,17 @@ async def get_profiles():
         return profiles
 
 
-# Run
+# Запуск Telegram-бота
+async def main():
+    await init_db(engine)
+    await dp.start_polling(bot)
+
+# Запуск FastAPI и Telegram
 if __name__ == "__main__":
-    import asyncio
+    import uvicorn
 
     async def on_startup():
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Бот и API запущены")
+        await init_db(engine)
 
     asyncio.run(on_startup())
-    dp.start_polling(bot)
-    # uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
