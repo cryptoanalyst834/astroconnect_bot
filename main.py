@@ -1,105 +1,118 @@
-import os
-import logging
 import asyncio
-from aiogram import Bot, Dispatcher, F, types
+import logging
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import ReplyKeyboardRemove
 from fastapi import FastAPI
 from database import init_db, add_user_profile, get_all_profiles
-from astro_utils import generate_astrology_data
-from dotenv import load_dotenv
 from models import UserProfile
+from astro_utils import generate_astrology_data
+from aiogram.types import FSInputFile
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from starlette.responses import JSONResponse
+import os
+from dotenv import load_dotenv
+from states import RegistrationState
 
 load_dotenv()
 
+# --- Logging ---
+logging.basicConfig(level=logging.INFO)
+
+# --- Bot Setup ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(token=TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# --- FastAPI Setup ---
 app = FastAPI()
 
-class Registration(StatesGroup):
-    waiting_for_name = State()
-    waiting_for_birthdate = State()
-    waiting_for_birthtime = State()
-    waiting_for_birthplace = State()
+@app.get("/profiles")
+async def read_profiles():
+    profiles = await get_all_profiles()
+    return profiles
 
-@dp.message(F.text == "/start")
-async def start_handler(message: Message, state: FSMContext):
-    text = (
-        "<b>Добро пожаловать в AstroConnect \u2728</b>\n\n"
-        "Это AI-сервис знакомств на основе астрологической совместимости.\n\n"
-        "\ud83d\udcc5 Мы рассчитываем натальную карту\n"
-        "\ud83d\ude0d Подбираем совместимых партнёров\n"
-        "\ud83e\udeaa Помогаем понять себя и свои сильные стороны\n\n"
-        "Чтобы начать, напишите своё <b>имя</b>."
+# --- Bot Handlers ---
+
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
+    WELCOME_TEXT = (
+        "✨ *Добро пожаловать в AstroConnect!* ✨\n\n"
+        "🔮 Здесь ты сможешь найти совместимого партнёра по звёздам — с помощью астрологии и натальной карты.\n\n"
+        "🪐 *Что умеет бот:*\n"
+        "— Построить твою натальную карту\n"
+        "— Сохранить анкету\n"
+        "— Найти подходящих партнёров по совместимости\n\n"
+        "🚀 *Готов(а) начать?* Жми /profile, чтобы заполнить анкету!"
     )
-    await message.answer(text, parse_mode="HTML")
-    await state.set_state(Registration.waiting_for_name)
+    await message.answer(WELCOME_TEXT)
 
-@dp.message(Registration.waiting_for_name)
-async def get_name(message: Message, state: FSMContext):
-    await state.update_data(name=message.text.strip())
-    await message.answer("Укажи дату рождения в формате ГГГГ-ММ-ДД")
-    await state.set_state(Registration.waiting_for_birthdate)
+@dp.message(Command("profile"))
+async def create_profile(message: types.Message, state: FSMContext):
+    await message.answer("Как тебя зовут?")
+    await state.set_state(RegistrationState.name)
 
-@dp.message(Registration.waiting_for_birthdate)
-async def get_birthdate(message: Message, state: FSMContext):
-    await state.update_data(birthdate=message.text.strip())
-    await message.answer("Укажи точное время рождения (например, 14:30)")
-    await state.set_state(Registration.waiting_for_birthtime)
+@dp.message(RegistrationState.name)
+async def process_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer("Когда ты родился? (в формате ДД.ММ.ГГГГ)")
+    await state.set_state(RegistrationState.birth_date)
 
-@dp.message(Registration.waiting_for_birthtime)
-async def get_birthtime(message: Message, state: FSMContext):
-    await state.update_data(birthtime=message.text.strip())
-    await message.answer("И последнее — напиши город рождения")
-    await state.set_state(Registration.waiting_for_birthplace)
+@dp.message(RegistrationState.birth_date)
+async def process_birth_date(message: types.Message, state: FSMContext):
+    await state.update_data(birth_date=message.text)
+    await message.answer("В какое время ты родился? (например, 14:30)")
+    await state.set_state(RegistrationState.birth_time)
 
-@dp.message(Registration.waiting_for_birthplace)
-async def get_birthplace(message: Message, state: FSMContext):
+@dp.message(RegistrationState.birth_time)
+async def process_birth_time(message: types.Message, state: FSMContext):
+    await state.update_data(birth_time=message.text)
+    await message.answer("Где ты родился? (город, страна)")
+    await state.set_state(RegistrationState.birth_place)
+
+@dp.message(RegistrationState.birth_place)
+async def process_birth_place(message: types.Message, state: FSMContext):
+    await state.update_data(birth_place=message.text)
+    await message.answer("Отправь свою фотографию")
+    await state.set_state(RegistrationState.photo)
+
+@dp.message(RegistrationState.photo, F.photo)
+async def process_photo(message: types.Message, state: FSMContext):
+    photo = message.photo[-1]
+    file_id = photo.file_id
+    await state.update_data(photo_id=file_id)
+
     data = await state.get_data()
-    name = data['name']
-    birthdate = data['birthdate']
-    birthtime = data['birthtime']
-    birthplace = message.text.strip()
 
-    astro_data = await generate_astrology_data(birthdate, birthtime, birthplace)
-
-    user = await add_user_profile(
-        name=name,
-        birth_date=birthdate,
-        birth_time=birthtime,
-        birth_place=birthplace,
-        sun_sign=astro_data['sun_sign'],
-        ascendant=astro_data['ascendant']
+    astro_data = await generate_astrology_data(
+        birth_date=data["birth_date"],
+        birth_time=data["birth_time"],
+        birth_place=data["birth_place"]
     )
 
-    await message.answer(
-        f"Спасибо, {name}!\n"
-        f"\n<code>\u2609 Солнце в: {astro_data['sun_sign']}\n"
-        f"\u2191 Асцендент: {astro_data['ascendant']}</code>\n\n"
-        "Ты успешно зарегистрирован в системе \U0001F973",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove()
+    await add_user_profile(
+        telegram_id=message.from_user.id,
+        name=data["name"],
+        birth_date=data["birth_date"],
+        birth_time=data["birth_time"],
+        birth_place=data["birth_place"],
+        photo_id=file_id,
+        zodiac_sign=astro_data["zodiac_sign"],
+        ascendant=astro_data["ascendant"]
     )
+
+    await message.answer("✅ Анкета сохранена! Теперь ты можешь открыть мини-приложение и смотреть совместимость.")
     await state.clear()
 
-@app.get("/profiles")
-async def profiles():
-    return await get_all_profiles()
+# --- Startup ---
 
 async def on_startup():
     await init_db()
-    print("Bot is ready.")
+    logging.info("Bot and DB initialized")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    loop = asyncio.get_event_loop()
-    loop.create_task(dp.start_polling(bot))
-    loop.run_until_complete(on_startup())
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    asyncio.run(on_startup())
+    dp.run_polling(bot)
