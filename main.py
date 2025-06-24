@@ -1,5 +1,6 @@
 import os
-import loggingfrom db_base import Base
+import logging
+from db_base import Base
 from models import UserProfile
 from database import get_session, add_user_profile, get_all_profiles
 from dotenv import load_dotenv
