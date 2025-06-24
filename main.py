@@ -18,7 +18,7 @@ from starlette.responses import JSONResponse
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from astro_utils import generate_astrology_data
+from astro_utils import generate_natal_chart
 from database import init_db
 from models import UserProfile, Base
 
