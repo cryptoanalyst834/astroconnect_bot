@@ -1,18 +1,28 @@
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
+from models import UserProfile
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
+from dotenv import load_dotenv
 
-# 🚀 Правильный префикс для asyncpg
+load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://")
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
-async_session = async_sessionmaker(engine, expire_on_commit=False)
-Base = declarative_base()
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# Это и есть get_session — генератор сессии
+async def get_session() -> AsyncSession:
+    async with async_session() as session:
+        yield session
+
+# Добавление анкеты в базу
+async def add_user_profile(session: AsyncSession, data: dict):
+    profile = UserProfile(**data)
+    session.add(profile)
+    await session.commit()
+
+# Получение всех анкет
+async def get_all_profiles(session: AsyncSession):
+    result = await session.execute(select(UserProfile))
+    return result.scalars().all()
