@@ -1,63 +1,37 @@
+import os
 import logging
-import asyncio
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
-from fastapi.middleware.cors import CORSMiddleware
+from aiogram import Bot, Dispatcher, F
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import Message
+from aiogram.client.default import DefaultBotProperties
+from dotenv import load_dotenv
 
-from config import TOKEN
-from database import init_db
-from handlers.start import router as start_router
-from handlers.profile import router as profile_router
-from api import api_router
+# Загрузка переменных окружения
+load_dotenv()
+TOKEN = os.getenv("BOT_TOKEN", "PLACEHOLDER_TOKEN")
 
-# Настройка логирования
+# Логирование
 logging.basicConfig(level=logging.INFO)
 
-# Создание экземпляра бота и диспетчера
-bot = Bot(token=TOKEN, default=ParseMode.HTML)
+# Инициализация FastAPI
+app = FastAPI(title="AstroConnect API")
+
+# Инициализация Telegram-бота
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
-dp.include_router(start_router)
-dp.include_router(profile_router)
 
-# Lifespan (инициализация БД при старте FastAPI)
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-
-# FastAPI-приложение
-app = FastAPI(lifespan=lifespan)
-
-# Настройка CORS (для мини-приложения)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Заменить на домен фронтенда в проде
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Роутер API
+# Роутинг FastAPI
+from api.router import api_router
 app.include_router(api_router)
 
-# Команды бота (при старте)
-async def set_default_commands(bot: Bot):
-    commands = [
-        BotCommand(command="/start", description="🚀 Начать работу"),
-        BotCommand(command="/edit", description="✏️ Редактировать анкету"),
-    ]
-    await bot.set_my_commands(commands)
+# Хэндлеры Telegram-бота
+@dp.message(F.text == "/start")
+async def cmd_start(message: Message):
+    await message.answer("Привет! Я бот AstroConnect 🚀")
 
-# Фоновая задача запуска бота
-async def start_bot():
-    await set_default_commands(bot)
-    await dp.start_polling(bot)
-
-# Запуск бота в фоне при запуске FastAPI
+# Фоновый запуск бота при старте FastAPI
 @app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(start_bot())
+async def on_startup():
+    import asyncio
+    asyncio.create_task(dp.start_polling(bot))
