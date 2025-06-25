@@ -1,25 +1,34 @@
+# api/routes.py
+
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from pydantic import BaseModel
+
 from database import get_async_session
 from models import UserProfile
-from sqlalchemy import select
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["profiles"])
 
-@router.get("/profiles")
+class ProfileSchema(BaseModel):
+    id: int
+    name: str
+    birth_date: str
+    birth_time: str
+    birth_place: str
+    zodiac: str
+    ascendant: str
+    photo_id: str
+
+    class Config:
+        orm_mode = True
+
+@router.get("/profiles", response_model=List[ProfileSchema])
 async def read_profiles(session: AsyncSession = Depends(get_async_session)):
-    result = await session.execute(select(UserProfile))
-    profiles = result.scalars().all()
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "birth_date": p.birth_date,
-            "birth_time": p.birth_time,
-            "birth_place": p.birth_place,
-            "zodiac": p.zodiac,
-            "ascendant": p.ascendant,
-            "photo_id": p.photo_id,
-        }
-        for p in profiles
-    ]
+    try:
+        result = await session.execute(select(UserProfile))
+        profiles = result.scalars().all()
+        return profiles
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при чтении профилей: {e}")
