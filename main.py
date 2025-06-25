@@ -9,10 +9,10 @@ from aiogram.types import Update
 from aiogram.client.default import DefaultBotProperties
 
 load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("TOKEN")
 RAILWAY_URL = os.getenv("RAILWAY_APP_URL")  # например: astroconnectbot-production.up.railway.app
 if not TOKEN or not RAILWAY_URL:
-    raise RuntimeError("Не заданы BOT_TOKEN или RAILWAY_APP_URL")
+    raise RuntimeError("Не заданы TOKEN или RAILWAY_APP_URL")
 
 WEBHOOK_PATH = f"/telegram/{TOKEN}"
 WEBHOOK_URL = f"https://{RAILWAY_URL}{WEBHOOK_PATH}"
