@@ -2,6 +2,8 @@
 
 import os
 import logging
+from api.routes import router as api_router
+app.include_router(api_router)
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from aiogram import Bot, Dispatcher
