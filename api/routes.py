@@ -1,5 +1,4 @@
 # api/routes.py
-
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +8,7 @@ from pydantic import BaseModel
 from database import get_async_session
 from models import UserProfile
 
-router = APIRouter(prefix="/api", tags=["profiles"])
+router = APIRouter()
 
 class ProfileSchema(BaseModel):
     id: int
@@ -21,14 +20,14 @@ class ProfileSchema(BaseModel):
     ascendant: str
     photo_id: str
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 @router.get("/profiles", response_model=List[ProfileSchema])
 async def read_profiles(session: AsyncSession = Depends(get_async_session)):
     try:
         result = await session.execute(select(UserProfile))
-        profiles = result.scalars().all()
-        return profiles
+        return result.scalars().all()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при чтении профилей: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
