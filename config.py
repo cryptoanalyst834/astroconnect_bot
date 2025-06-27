@@ -11,3 +11,5 @@ if not TOKEN:
 RAILWAY_APP_URL = os.getenv("RAILWAY_APP_URL")
 if not RAILWAY_APP_URL:
     raise RuntimeError("Переменная RAILWAY_APP_URL не задана!")
+
+FRONTED_URL = os.getenv("FRONTED_URL")
