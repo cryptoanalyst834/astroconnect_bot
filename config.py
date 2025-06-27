@@ -3,7 +3,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Получаем токен Telegram-бота
 TOKEN = os.getenv("TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-APP_URL = os.getenv("astroconnectbot-production.up.railway.app/")  # Это Railway APP URL для webhooks
-FRONTEND_URL = os.getenv("685798b95e51acca36207efb--astroconnectminiapp.netlify.app")
+if not TOKEN:
+    raise RuntimeError("Переменная TOKEN не задана!")
+
+RAILWAY_APP_URL = os.getenv("RAILWAY_APP_URL")
+if not RAILWAY_APP_URL:
+    raise RuntimeError("Переменная RAILWAY_APP_URL не задана!")
