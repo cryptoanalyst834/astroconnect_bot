@@ -3,7 +3,7 @@ import logging
 
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
-from aiogram.types import ParseMode
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from handlers.start import router as start_router
