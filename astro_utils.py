@@ -2,19 +2,10 @@ from flatlib.chart import Chart
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 
-# Здесь config не нужен, но при желании можно
-# импортировать таймзону или прочие константы
-
-def generate_astrology_data(date_str: str, time_str: str, place: str):
-    date_parts = date_str.split(".")
-    dt = Datetime(
-        f"{date_parts[2]}-{date_parts[1]}-{date_parts[0]}",
-        time_str,
-        "+03:00",    # можно тоже вынести в config.TZ
-    )
-    pos = GeoPos(*get_coordinates(place))
+def calc_natal(date_str, time_str, place_lat, place_lon):
+    dt = Datetime(date_str, time_str, "+03:00")  # поправьте на нужный TZ
+    pos = GeoPos(place_lat, place_lon)
     chart = Chart(dt, pos)
-    return {
-        "zodiac_sign": chart.get("SUN").sign,
-        "ascendant": chart.get("ASC").sign
-    }
+    sun_sign = chart.get("SUN").sign
+    asc_sign = chart.get("ASC").sign
+    return sun_sign, asc_sign
