@@ -1,18 +1,24 @@
+import asyncio
+import logging
 import os
-from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.filters import CommandStart
 
-TOKEN = os.getenv("TOKEN")
-WEBHOOK_PATH = f"/webhook/{TOKEN}"
-DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-WEBHOOK_URL = f"https://{DOMAIN}{WEBHOOK_PATH}"
+from fastapi import FastAPI, Request
+from aiogram import Bot, Dispatcher
+from aiogram.types import Update, Message, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+from config import TOKEN, APP_URL
+from api import api_router
+from database import init_db
+
+logging.basicConfig(level=logging.INFO)
+
+app = FastAPI()
+app.include_router(api_router)
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-app = FastAPI()
+dp = Dispatcher()
 
 WELCOME_TEXT = """
 <b>Добро пожаловать в AstroConnect!</b>
@@ -28,11 +34,9 @@ AstroConnect поможет:
 Вы в надёжных астрологических руках. Готовы начать?
 """
 
-start_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Начать регистрацию", callback_data="start_registration")]
-    ]
-)
+start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🚀 Начать регистрацию", callback_data="start_registration")]
+])
 
 @dp.message(CommandStart())
 async def start_handler(message: Message):
@@ -40,17 +44,23 @@ async def start_handler(message: Message):
 
 @app.on_event("startup")
 async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL)
-    print("Webhook установлен:", WEBHOOK_URL)
+    await init_db()
+    webhook_url = f"{APP_URL}/webhook"
+    await bot.set_webhook(webhook_url)
 
 @app.on_event("shutdown")
 async def on_shutdown():
     await bot.delete_webhook()
-    await bot.session.close()
-    print("Webhook удалён!")
 
-@app.post(WEBHOOK_PATH)
+@app.post("/webhook")
 async def telegram_webhook(request: Request):
-    update = types.Update(**await request.json())
+    data = await request.json()
+    update = Update.model_validate(data)
     await dp.feed_update(bot, update)
     return {"ok": True}
+
+# Чтобы запускать bot polling для локальной отладки (не используйте на Railway!)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+
