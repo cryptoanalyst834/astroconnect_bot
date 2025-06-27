@@ -8,7 +8,7 @@ from aiogram.types import Update, Message, InlineKeyboardButton, InlineKeyboardM
 from aiogram.filters import CommandStart
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-from config import TOKEN, APP_URL
+from config import TOKEN, RAILWAY_APP_URL
 from api import api_router
 from database import init_db
 
