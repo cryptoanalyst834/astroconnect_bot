@@ -13,3 +13,5 @@ if not RAILWAY_APP_URL:
     raise RuntimeError("Переменная RAILWAY_APP_URL не задана!")
 
 FRONTED_URL = os.getenv("FRONTED_URL")
+if not FRONTED_URL:
+    raise RuntimeError("Переменная FRONTED_URL не задана!")
