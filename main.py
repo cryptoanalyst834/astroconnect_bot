@@ -1,41 +1,41 @@
 import os
-import logging
-
-from fastapi import FastAPI
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
+from fastapi import FastAPI, Request
+from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import Message
+from aiogram.filters import CommandStart
 
-from handlers.start import router as start_router
-from handlers.profile import router as profile_router
-from api.routes import router as api_router
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-
-# Получаем токен из переменных окружения
 TOKEN = os.getenv("TOKEN")
+WEBHOOK_PATH = f"/webhook/{TOKEN}"
+# Пример: "astroconnectbot-production.up.railway.app"
+DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+WEBHOOK_URL = f"https://{DOMAIN}{WEBHOOK_PATH}"
 
-# Инициализация бота и диспетчера
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
+bot = Bot(token=TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
 
-# FastAPI
 app = FastAPI()
-app.include_router(api_router)
 
-# Регистрация роутеров aiogram
-dp.include_router(start_router)
-dp.include_router(profile_router)
+# --- aiogram handlers ---
+@dp.message(CommandStart())
+async def start_handler(message: Message):
+    await message.answer("Привет! Бот работает через webhook на Railway 🚀")
 
+# --- Webhook endpoints ---
 @app.on_event("startup")
 async def on_startup():
-    logging.info("Starting bot polling")
-    # Стартуем aiogram в отдельном таске
-    import asyncio
-    asyncio.create_task(dp.start_polling(bot))
+    # Важно: выставляем webhook только когда Railway поднимает сервер
+    await bot.set_webhook(WEBHOOK_URL)
+    print("Webhook установлен:", WEBHOOK_URL)
 
-@app.get("/")
-async def root():
-    return {"status": "AstroConnect bot & API are running!"}
+@app.on_event("shutdown")
+async def on_shutdown():
+    await bot.delete_webhook()
+    await bot.session.close()
+    print("Webhook удалён!")
+
+@app.post(WEBHOOK_PATH)
+async def telegram_webhook(request: Request):
+    update = types.Update(**await request.json())
+    await dp.feed_update(bot, update)
+    return {"ok": True}
