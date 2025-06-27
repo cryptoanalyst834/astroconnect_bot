@@ -45,7 +45,7 @@ async def start_handler(message: Message):
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-    webhook_url = f"{APP_URL}/webhook"
+    webhook_url = f"{RAILWAY_APP_URL}/webhook"
     await bot.set_webhook(webhook_url)
 
 @app.on_event("shutdown")
