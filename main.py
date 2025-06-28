@@ -1,20 +1,27 @@
-import asyncio
 import logging
-import os
-
 from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, Router, types, F
+from fastapi.middleware.cors import CORSMiddleware
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from config import TOKEN, RAILWAY_APP_URL
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from config import TOKEN, RAILWAY_APP_URL, FRONTEND_URL
 from database import init_db
-from api import api_router
+from api.routes import router as api_router
 from handlers.profile import router as profile_router
 
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 app.include_router(api_router)
+
+# CORS для фронта
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL, "http://localhost:5173"],  # добавь свои адреса фронта
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -47,7 +54,6 @@ async def start_handler(message: types.Message):
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-    # Установка webhook
     webhook_url = f"{RAILWAY_APP_URL}/webhook"
     await bot.set_webhook(webhook_url)
     logging.info(f"Webhook установлен на {webhook_url}")
