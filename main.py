@@ -1,6 +1,4 @@
 import logging
-import os
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from aiogram import Bot, Dispatcher, types
@@ -8,7 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import TOKEN, RAILWAY_APP_URL
 from database import init_db
-from api import api_router
+from api.routes import router as api_router
 from handlers.profile import router as profile_router
 
 logging.basicConfig(level=logging.INFO)
@@ -16,10 +14,9 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 app.include_router(api_router)
 
-# Разрешаем фронту CORS-запросы (меняй домен на свой production/webapp если нужно)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # или ['https://astroconnectminiapp.netlify.app']
+    allow_origins=["*"],  # для фронта
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
