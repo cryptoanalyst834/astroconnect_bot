@@ -14,10 +14,9 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 app.include_router(api_router)
 
-# CORS для фронта
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:5173"],  # добавь свои адреса фронта
+    allow_origins=[FRONTEND_URL, "https://astroconnectminiapp.netlify.app/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
