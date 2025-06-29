@@ -13,4 +13,3 @@ class UserProfile(Base):
     ascendant = Column(String)
     photo_id = Column(String, nullable=True)
     from sqlalchemy import Column, Integer, String, DateTime
-
