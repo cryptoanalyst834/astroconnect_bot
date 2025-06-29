@@ -2,29 +2,31 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from aiogram import Bot, Dispatcher, types
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import TOKEN, RAILWAY_APP_URL, FRONTEND_URL
 from database import init_db
-from api import api_router
 from handlers.profile import router as profile_router
+from api import api_router
 
 logging.basicConfig(level=logging.INFO)
+
 app = FastAPI()
-
-# CORS для фронта
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(api_router)
 
+if FRONTEND_URL:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[FRONTEND_URL],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 bot = Bot(token=TOKEN)
-dp = Dispatcher()
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 dp.include_router(profile_router)
 
 WELCOME_TEXT = """
@@ -69,8 +71,3 @@ async def telegram_webhook(request: Request):
     update = types.Update.model_validate(data)
     await dp.feed_update(bot, update)
     return {"ok": True}
-
-# Чтобы Railway не "засыпал" — healthcheck endpoint
-@app.get("/ping")
-async def ping():
-    return {"status": "ok"}
