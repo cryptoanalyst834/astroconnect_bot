@@ -1,15 +1,19 @@
-from sqlalchemy import Column, Integer, String, Date, Time
+from sqlalchemy import Column, Integer, String, Date, Float
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
 
 class UserProfile(Base):
     __tablename__ = "profiles"
     id = Column(Integer, primary_key=True, index=True)
-    tg_id = Column(String, unique=True, index=True)
-    name = Column(String)
+    tg_id = Column(Integer, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    gender = Column(String)
     birth_date = Column(Date)
-    birth_time = Column(Time)
+    birth_time = Column(String)
     birth_place = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
     zodiac = Column(String)
     ascendant = Column(String)
-    photo_id = Column(String, nullable=True)
-    from sqlalchemy import Column, Integer, String, DateTime
+    description = Column(String)
+    astro_data = Column(JSONB)
