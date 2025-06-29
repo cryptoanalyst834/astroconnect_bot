@@ -1,36 +1,28 @@
-import os
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import TOKEN, RAILWAY_APP_URL, FRONTEND_URL
 from database import init_db
 from api import api_router
 from handlers.profile import router as profile_router
 
 logging.basicConfig(level=logging.INFO)
-
-# --- FastAPI app setup ---
 app = FastAPI()
 
-# --- CORS для miniapp ---
+# CORS для фронта
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "https://astroconnectminiapp.netlify.app"],
+    allow_origins=[FRONTEND_URL, "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Routers ---
 app.include_router(api_router)
-# (можно добавить дополнительные api-роутеры если нужно)
-# app.include_router(other_router)
 
-# --- Telegram Bot ---
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(profile_router)
@@ -59,12 +51,6 @@ start_keyboard = InlineKeyboardMarkup(
 async def start_handler(message: types.Message):
     await message.answer(WELCOME_TEXT, reply_markup=start_keyboard, parse_mode="HTML")
 
-@dp.callback_query(F.data == "start_registration")
-async def registration_callback(callback: CallbackQuery):
-    await callback.message.answer("Давай начнём регистрацию!\n\nКак тебя зовут?")
-    await callback.answer()
-
-# --- FastAPI startup/shutdown ---
 @app.on_event("startup")
 async def on_startup():
     await init_db()
@@ -83,3 +69,8 @@ async def telegram_webhook(request: Request):
     update = types.Update.model_validate(data)
     await dp.feed_update(bot, update)
     return {"ok": True}
+
+# Чтобы Railway не "засыпал" — healthcheck endpoint
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
