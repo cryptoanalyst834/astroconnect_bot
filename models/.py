@@ -12,3 +12,5 @@ class UserProfile(Base):
     zodiac = Column(String)
     ascendant = Column(String)
     photo_id = Column(String, nullable=True)
+    from sqlalchemy import Column, Integer, String, DateTime
+
