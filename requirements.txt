@@ -4,7 +4,7 @@ aiogram==3.4.1
 python-dotenv
 asyncpg
 SQLAlchemy==2.0.30
-pydantic==2.7.1
+pydantic==2.5.3
 pyswisseph
 aiohttp
 httpx
