@@ -4,7 +4,7 @@ from flatlib.geo import Geo
 from geopy.geocoders import Nominatim
 
 def geocode_place(place: str):
-    geolocator = Nominatim(user_agent="astroconnect")
+    geolocator = Nominatim(user_agent="AstroConnect")
     location = geolocator.geocode(place)
     if not location:
         raise ValueError("Место рождения не найдено.")
