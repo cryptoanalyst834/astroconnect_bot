@@ -1,24 +1,13 @@
-from flatlib.geo import Geo
 from flatlib.chart import Chart
 from flatlib.datetime import Datetime
-from geopy.geocoders import Nominatim
+from flatlib.const import SUN, ASC
 
-def geocode_place(place):
-    geolocator = Nominatim(user_agent="astroconnect")
-    location = geolocator.geocode(place)
-    if location:
-        return location.longitude, location.latitude
-    else:
-        raise ValueError("Город не найден")
-
-def get_natal_chart(date_str, time_str, place):
-    lon, lat = geocode_place(place)
-    dt = Datetime(f"{date_str}", f"{time_str}", '+03:00')
-    pos = Geo('', lon, lat)
+def get_zodiac_and_ascendant(date: str, time: str):
+    # date: "YYYY-MM-DD", time: "HH:MM"
+    dt = Datetime(date, time)
+    # Пример координат для Москвы (можно всегда их ставить, если город не вводится)
+    pos = {"lat": "55.7558", "lon": "37.6176"} 
     chart = Chart(dt, pos)
-    return chart
-
-def get_zodiac_and_ascendant(chart):
-    sun = chart.get('SUN')
-    asc = chart.get('ASC')
-    return sun.sign, asc.sign
+    sun_sign = chart.get(SUN).sign
+    asc_sign = chart.get(ASC).sign
+    return sun_sign, asc_sign
