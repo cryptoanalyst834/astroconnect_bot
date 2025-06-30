@@ -11,9 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ЯВНО — чтобы точно ставилась последняя версия flatlib
-RUN pip install --force-reinstall --no-cache-dir flatlib==0.2.3
-
 COPY . .
 
 RUN find . -name '*.pyc' -delete
