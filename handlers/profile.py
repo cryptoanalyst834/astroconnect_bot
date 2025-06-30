@@ -1,10 +1,8 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InputMediaPhoto
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from states import RegistrationStates
 from astro_utils import get_zodiac_and_ascendant
-from aiogram import types, F
-from states import RegistrationStates 
 
 router = Router()
 
@@ -12,6 +10,7 @@ router = Router()
 async def registration_start(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Введите ваше имя:")
     await state.set_state(RegistrationStates.name)
+    await callback.answer()
 
 @router.message(RegistrationStates.name)
 async def process_name(message: Message, state: FSMContext):
@@ -39,17 +38,18 @@ async def process_birth_city(message: Message, state: FSMContext):
 
 @router.message(RegistrationStates.about)
 async def process_about(message: Message, state: FSMContext):
-    await state.update_data(about=message.text if message.text != '-' else '')
+    about_text = message.text if message.text != '-' else ''
+    await state.update_data(about=about_text)
     await message.answer("Пришлите ваше фото (по желанию, иначе отправьте -):")
     await state.set_state(RegistrationStates.photo)
 
 @router.message(RegistrationStates.photo)
 async def process_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
     photo_id = None
     if message.photo:
         photo_id = message.photo[-1].file_id
     await state.update_data(photo=photo_id)
+    data = await state.get_data()
     # Получаем все поля для построения карты
     name = data.get('name')
     birth_date = data.get('birth_date')
@@ -57,17 +57,18 @@ async def process_photo(message: Message, state: FSMContext):
     birth_city = data.get('birth_city')
     about = data.get('about')
     sun_sign, asc_sign = get_zodiac_and_ascendant(birth_date, birth_time, birth_city)
-    # Сохраняем профиль (тут твоя логика БД!)
+    # Здесь — твоя логика сохранения в БД
     # await save_profile_to_db(...)
-    summary = (f"Ваша анкета:\n"
-               f"Имя: {name}\n"
-               f"Дата рождения: {birth_date}\n"
-               f"Время рождения: {birth_time}\n"
-               f"Город рождения: {birth_city}\n"
-               f"Знак Зодиака: {sun_sign}\n"
-               f"Асцендент: {asc_sign}\n"
-               f"О себе: {about or '—'}")
-    await message.answer(summary)
-    await message.answer("Спасибо! Ваша анкета сохранена.\n"
-                        "Можете воспользоваться /discover для просмотра совместимых анкет!")
+    summary = (
+        f"<b>Ваша анкета:</b>\n"
+        f"Имя: {name}\n"
+        f"Дата рождения: {birth_date}\n"
+        f"Время рождения: {birth_time}\n"
+        f"Город рождения: {birth_city}\n"
+        f"Знак Зодиака: {sun_sign}\n"
+        f"Асцендент: {asc_sign}\n"
+        f"О себе: {about or '—'}"
+    )
+    await message.answer(summary, parse_mode="HTML")
+    await message.answer("Спасибо! Ваша анкета сохранена.\nМожете воспользоваться /discover для поиска совместимых анкет!")
     await state.clear()
