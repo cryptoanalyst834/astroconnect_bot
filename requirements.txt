@@ -7,4 +7,3 @@ python-dotenv==1.0.1
 pydantic==2.5.3
 aiohttp==3.9.5
 geopy==2.4.1
-git+https://github.com/flatlib/flatlib.git@master
