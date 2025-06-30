@@ -5,4 +5,5 @@ class RegistrationStates(StatesGroup):
     birth_date = State()
     birth_time = State()
     birth_city = State()   
+    about = State()
     photo = State()
