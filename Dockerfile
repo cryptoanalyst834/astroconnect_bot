@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Клонируем flatlib вручную и устанавливаем
+RUN git clone https://github.com/flatlib/flatlib.git && cd flatlib && pip install .
+
 COPY . .
 
 RUN find . -name '*.pyc' -delete
