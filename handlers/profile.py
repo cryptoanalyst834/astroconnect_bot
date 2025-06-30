@@ -3,6 +3,8 @@ from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from aiogram.fsm.context import FSMContext
 from states import RegistrationStates
 from astro_utils import get_zodiac_and_ascendant
+from aiogram import types, F
+from states import RegistrationStates 
 
 router = Router()
 
