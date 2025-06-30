@@ -10,8 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-# ↓↓↓ ДОПОЛНИТЕЛЬНО, если проблемы с flatlib
-RUN pip install flatlib==0.2.3
+# Можно убрать отдельный RUN pip install flatlib==0.2.3
 
 COPY . .
 
