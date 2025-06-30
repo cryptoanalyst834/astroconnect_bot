@@ -5,12 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc build-essential python3-dev pkg-config \
+    gcc build-essential python3-dev pkg-config git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-# Можно убрать отдельный RUN pip install flatlib==0.2.3
 
 COPY . .
 
