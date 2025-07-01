@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from database import get_async_session
 from models import UserProfile
-from astro_utils import get_zodiac_and_ascendant, compatibility_score
+from astro_utils import compatibility_score
 
 router = APIRouter()
 
@@ -36,11 +36,15 @@ async def find_match(telegram_id: int = Query(...), session: AsyncSession = Depe
     candidates = result.scalars().all()
     if not candidates:
         return {"error": "Нет других анкет"}
-    # Считаем совместимость по sun_sign и asc_sign
     best = None
     best_score = -1
+    current_profile = {"zodiac": current.zodiac, "ascendant": current.ascendant}
     for c in candidates:
-        score = compatibility
+        candidate_profile = {"zodiac": c.zodiac, "ascendant": c.ascendant}
+        score = compatibility_score(current_profile, candidate_profile)
+        if score > best_score:
+            best = c
+            best_score = score
     if best:
         return {
             "id": best.id,
