@@ -50,24 +50,20 @@ async def process_photo(message: Message, state: FSMContext):
         photo_id = message.photo[-1].file_id
     await state.update_data(photo=photo_id)
     data = await state.get_data()
-    # Получаем все поля для построения карты
-    name = data.get('name')
-    birth_date = data.get('birth_date')
-    birth_time = data.get('birth_time')
-    birth_city = data.get('birth_city')
-    about = data.get('about')
-    sun_sign, asc_sign = get_zodiac_and_ascendant(birth_date, birth_time, birth_city)
-    # Здесь — твоя логика сохранения в БД
-    # await save_profile_to_db(...)
+    # Расчет карты:
+    sun_sign, asc_sign = get_zodiac_and_ascendant(
+        data["birth_date"], data["birth_time"], data["birth_city"]
+    )
+    # Здесь вставить сохранение в БД!
     summary = (
         f"<b>Ваша анкета:</b>\n"
-        f"Имя: {name}\n"
-        f"Дата рождения: {birth_date}\n"
-        f"Время рождения: {birth_time}\n"
-        f"Город рождения: {birth_city}\n"
+        f"Имя: {data.get('name')}\n"
+        f"Дата рождения: {data.get('birth_date')}\n"
+        f"Время рождения: {data.get('birth_time')}\n"
+        f"Город рождения: {data.get('birth_city')}\n"
         f"Знак Зодиака: {sun_sign}\n"
         f"Асцендент: {asc_sign}\n"
-        f"О себе: {about or '—'}"
+        f"О себе: {data.get('about') or '—'}"
     )
     await message.answer(summary, parse_mode="HTML")
     await message.answer("Спасибо! Ваша анкета сохранена.\nМожете воспользоваться /discover для поиска совместимых анкет!")
