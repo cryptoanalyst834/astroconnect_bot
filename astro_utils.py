@@ -4,7 +4,6 @@ from flatlib.const import SUN, ASC
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 
-
 def geocode_place(city_name):
     """Геокодинг города — получает координаты по названию"""
     geolocator = Nominatim(user_agent="astroconnect")
@@ -17,14 +16,7 @@ def geocode_place(city_name):
     # Fallback: Москва
     return {"lat": 55.7558, "lon": 37.6176}
 
-
 def get_zodiac_and_ascendant(date: str, time: str, city: str = "Москва"):
-    """
-    Возвращает знак зодиака (Солнце) и асцендент.
-    date: "YYYY-MM-DD"
-    time: "HH:MM"
-    city: место рождения (по названию)
-    """
     pos = geocode_place(city)
     dt = Datetime(date, time)
     chart = Chart(dt, pos)
@@ -32,16 +24,11 @@ def get_zodiac_and_ascendant(date: str, time: str, city: str = "Москва"):
     asc_sign = chart.get(ASC).sign
     return sun_sign, asc_sign
 
-
 def compatibility_score(profile1, profile2):
-    """
-    Простая функция расчёта совместимости по знакам Зодиака
-    profile1, profile2: объекты с полями sun_sign, asc_sign (строки)
-    """
-    # Для примера: если совпадает хотя бы один знак — +50%, иначе 0
+    # Пример: если совпадает хотя бы один знак — +50%, иначе 0
     score = 0
-    if profile1.sun_sign == profile2.sun_sign:
+    if profile1["zodiac"] == profile2["zodiac"]:
         score += 50
-    if profile1.asc_sign == profile2.asc_sign:
+    if profile1["ascendant"] == profile2["ascendant"]:
         score += 50
     return score
