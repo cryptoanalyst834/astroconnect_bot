@@ -8,7 +8,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import TOKEN, RAILWAY_APP_URL, FRONTEND_URL
 from database import init_db
 from handlers.profile import router as profile_router
-from api import api_router
+from api.routes import router as api_router
 
 logging.basicConfig(level=logging.INFO)
 
