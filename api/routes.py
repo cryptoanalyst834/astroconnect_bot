@@ -36,28 +36,11 @@ async def find_match(telegram_id: int = Query(...), session: AsyncSession = Depe
     candidates = result.scalars().all()
     if not candidates:
         return {"error": "Нет других анкет"}
-    # Считаем совместимость
-    current_chart = get_zodiac_and_ascendant(
-        str(current.birth_date),
-        current.birth_time,
-        current.birth_place,
-        current.latitude,
-        current.longitude
-    )[2]
+    # Считаем совместимость по sun_sign и asc_sign
     best = None
     best_score = -1
     for c in candidates:
-        c_chart = get_zodiac_and_ascendant(
-            str(c.birth_date),
-            c.birth_time,
-            c.birth_place,
-            c.latitude,
-            c.longitude
-        )[2]
-        score = compatibility_score(current_chart, c_chart)
-        if score > best_score:
-            best = c
-            best_score = score
+        score = compatibility
     if best:
         return {
             "id": best.id,
