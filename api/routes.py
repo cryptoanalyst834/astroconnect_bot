@@ -27,12 +27,12 @@ async def get_profiles(session: AsyncSession = Depends(get_async_session)):
 @router.get("/find_match")
 async def find_match(telegram_id: int = Query(...), session: AsyncSession = Depends(get_async_session)):
     # Находим текущего пользователя
-    result = await session.execute(select(UserProfile).where(UserProfile.telegram_id == tg_id))
+    result = await session.execute(select(UserProfile).where(UserProfile.telegram_id == telegram_id))
     current = result.scalar_one_or_none()
     if not current:
         return {"error": "Пользователь не найден"}
     # Выбираем остальных пользователей
-    result = await session.execute(select(UserProfile).where(UserProfile.telegram_id != tg_id))
+    result = await session.execute(select(UserProfile).where(UserProfile.telegram_id != telegram_id))
     candidates = result.scalars().all()
     if not candidates:
         return {"error": "Нет других анкет"}
