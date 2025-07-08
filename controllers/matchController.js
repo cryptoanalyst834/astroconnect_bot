@@ -1,26 +1,22 @@
-const User = require('../models/User');
-const Interaction = require('../models/Interaction');
+const User = require("../models/User");
+const Match = require("../models/Match");
 
-exports.getMatches = async (req, res) => {
-  const userId = req.userId;
-  const matches = await Interaction.find({ fromUser: userId, type: 'like' }).populate('toUser');
-  const result = matches.map(i => i.toUser);
-  res.json(result);
-};
+exports.getRecommendedProfiles = async (req, res) => {
+  try {
+    const { userId } = req.query;
 
-exports.likeUser = async (req, res) => {
-  const { targetUserId } = req.body;
+    const currentUser = await User.findById(userId);
+    if (!currentUser) return res.status(404).json({ message: "Пользователь не найден" });
 
-  const existing = await Interaction.findOne({ fromUser: req.userId, toUser: targetUserId });
-  if (existing) return res.status(400).json({ error: 'Already interacted' });
+    const recommendations = await User.find({
+      _id: { $ne: userId },
+      gender: currentUser.interestedIn,
+      age: { $gte: currentUser.ageRange[0], $lte: currentUser.ageRange[1] },
+    }).limit(20);
 
-  await Interaction.create({ fromUser: req.userId, toUser: targetUserId, type: 'like' });
-
-  const isMutual = await Interaction.findOne({ fromUser: targetUserId, toUser: req.userId, type: 'like' });
-
-  if (isMutual) {
-    return res.json({ matched: true });
+    res.json(recommendations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Ошибка подбора анкет" });
   }
-
-  res.json({ matched: false });
 };
