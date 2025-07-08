@@ -1,5 +1,5 @@
 {
-  "name": "astroconnect-backend",
+  "name": "astroconnect-bot",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
