@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import morgan from 'morgan';
+
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profiles.js';
 import giftRoutes from './routes/gifts.js';
@@ -14,6 +15,7 @@ dotenv.config();
 
 const app = express();
 
+// Middlewares
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '50mb' }));
@@ -26,34 +28,4 @@ app.use('/api/filters', filterRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audio', audioRoutes);
 
-// MongoDB
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log('MongoDB connected');
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => console.error(err));
-const express = require('express');
-const mongoose = require('mongoose');
-const audioRoutes = require('./routes/audio.routes');
-
-const app = express();
-app.use(express.json());
-
-app.use('/api/audio', audioRoutes);
-
-// Подключение к MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('MongoDB connected'))
-  .catch(err => console.log(err));
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-
+//
