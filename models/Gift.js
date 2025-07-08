@@ -1,11 +1,18 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const giftSchema = new mongoose.Schema({
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  receiver: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  type: { type: String, enum: ['rose', 'heart', 'diamond'], required: true },
-  message: { type: String, maxlength: 200 },
-  createdAt: { type: Date, default: Date.now }
+const GiftSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  iconUrl: {
+    type: String,
+    required: true,
+  },
+  price: {
+    type: Number, // в коинах/баллах
+    required: true,
+  },
 });
 
-module.exports = mongoose.model('Gift', giftSchema);
+module.exports = mongoose.model("Gift", GiftSchema);
